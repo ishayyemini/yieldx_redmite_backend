@@ -2,50 +2,17 @@ const express = require('express')
 const sql = require('mssql')
 const cors = require('cors')
 const passport = require('passport')
-const LocalStrategy = require('passport-local')
-const crypto = require('crypto')
+
+const { authenticate, localStrategy, setLoginSession } = require('./auth/login')
+const { createUser, findUser } = require('./auth/db_user')
+const { getLoginSession } = require('./auth/session')
+const setupAuth = require('./auth/setup_auth')
 
 const app = express()
 
 app.use(cors())
 app.use(express.json())
-
-passport.use(
-  new LocalStrategy((username, password, cb) => {
-    console.log(username)
-    new sql.Request().query(
-      `SELECT * FROM RedMiteUsers WHERE username = '${username}'`,
-      (err, res) => {
-        const row = res?.recordset?.[0]
-        if (err) {
-          return cb(err)
-        }
-        if (!row) {
-          return cb(null, false, { message: 'Incorrect username or password.' })
-        }
-
-        crypto.pbkdf2(
-          password,
-          row.salt,
-          310000,
-          32,
-          'sha256',
-          (err, hashedPassword) => {
-            if (err) {
-              return cb(err)
-            }
-            if (!crypto.timingSafeEqual(row.hashed_password, hashedPassword)) {
-              return cb(null, false, {
-                message: 'Incorrect username or password.',
-              })
-            }
-            return cb(null, row)
-          }
-        )
-      }
-    )
-  })
-)
+passport.use('local', localStrategy)
 
 app.get('/test', (req, res) => {
   res.send('test ok!')
@@ -59,13 +26,38 @@ app.get('/fail', (req, res) => {
   res.send('failed to login')
 })
 
-app.post(
-  '/login',
-  passport.authenticate('local', {}, (err, res) => {
-    console.log(err)
-    console.log(res)
-  })
-)
+app.post('/login', async (req, res) => {
+  try {
+    const user = await authenticate('local', req, res)
+    await setLoginSession(res, { ...user })
+    res.status(200).send({ done: true })
+  } catch (error) {
+    console.error(error)
+    res.status(401).send(error.message)
+  }
+})
+
+app.post('/user', async (req, res) => {
+  try {
+    const session = await getLoginSession(req)
+    const user = (session && (await findUser(session))) ?? null
+    res.status(200).json({ user })
+  } catch (error) {
+    console.error(error)
+    res.status(500).send('Authentication token is invalid, please log in')
+  }
+})
+
+app.post('/signup', async (req, res) => {
+  try {
+    const user = await createUser(req.body)
+    await setLoginSession(res, { ...user })
+    res.status(200).send({ done: true })
+  } catch (error) {
+    console.error(error)
+    res.status(500).send(error.message)
+  }
+})
 
 const config = {
   user: 'sa',
@@ -74,7 +66,8 @@ const config = {
   database: 'ishay',
   options: { encrypt: false },
 }
-sql.connect(config).then(() => {
+sql.connect(config).then(async () => {
+  await setupAuth()
   app.listen(process.env.PORT || 4000, () => {
     console.log('Server Running on PORT', process.env.PORT)
   })

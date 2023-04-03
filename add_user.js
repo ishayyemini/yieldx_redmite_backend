@@ -14,7 +14,7 @@ sql.connect(config).then(() => {
     .input(
       'hashed_password',
       sql.TYPES.VarBinary(sql.MAX),
-      crypto.pbkdf2Sync('1234', salt, 310000, 32, 'sha256')
+      crypto.pbkdf2Sync('1234', salt, 310000, 32, 'sha512')
     )
     .input('salt', sql.TYPES.VarBinary(sql.MAX), salt)
     .query(
