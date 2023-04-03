@@ -9,9 +9,9 @@ const setTokenCookie = (res, token) => {
     maxAge: MAX_AGE,
     expires: new Date(Date.now() + MAX_AGE * 1000),
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: true,
     path: '/',
-    sameSite: 'lax',
+    sameSite: 'None',
   })
 
   res.setHeader('Set-Cookie', cookie)
