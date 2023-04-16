@@ -3,19 +3,14 @@ const sql = require('mssql')
 const cors = require('cors')
 const passport = require('passport')
 
-const { authenticate, localStrategy, setLoginSession } = require('./auth/login')
-const { createUser, findUser } = require('./auth/db_user')
-const { getLoginSession } = require('./auth/session')
+const { authenticate, localStrategy } = require('./auth/login')
+const { createUser, findUserByID } = require('./auth/db_user')
+const { getLoginSession, setLoginSession } = require('./auth/session')
 const setupAuth = require('./auth/setup_auth')
 
 const app = express()
 
-app.use(
-  cors({
-    credentials: true,
-    origin: ['http://localhost:3000', 'http://192.168.1.27:3000'],
-  })
-) // TODO update origin when we have an actual website
+app.use(cors({ credentials: true, origin: ['http://localhost:3000'] })) // TODO update origin when we have an actual website
 app.use(express.json())
 passport.use('local', localStrategy)
 
@@ -34,7 +29,7 @@ app.get('/fail', (req, res) => {
 app.post('/login', async (req, res) => {
   try {
     const user = await authenticate('local', req, res)
-    await setLoginSession(res, { ...user })
+    await setLoginSession(res, user.id)
     res.status(200).json({ user: { username: user.username, id: user.id } })
   } catch (error) {
     console.error(error)
@@ -44,8 +39,9 @@ app.post('/login', async (req, res) => {
 
 app.post('/user', async (req, res) => {
   try {
-    const session = await getLoginSession(req)
-    const user = (session && (await findUser(session))) ?? null
+    const user = await getLoginSession(req).then((session) =>
+      findUserByID(session)
+    )
     res.status(200).json({ user: { username: user.username, id: user.id } })
   } catch (error) {
     console.error(error)
@@ -56,7 +52,7 @@ app.post('/user', async (req, res) => {
 app.post('/signup', async (req, res) => {
   try {
     const user = await createUser(req.body)
-    await setLoginSession(res, { ...user })
+    await setLoginSession(res, user.id)
     res.status(200).json({ user: { username: user.username, id: user.id } })
   } catch (error) {
     console.error(error)
@@ -74,7 +70,7 @@ const config = {
 sql.connect(config).then(async () => {
   await setupAuth()
   app.listen(process.env.PORT || 4000, () => {
-    console.log('Server Running on PORT', process.env.PORT)
+    console.log('Server Running on PORT', process.env.PORT || 4000)
   })
 })
 

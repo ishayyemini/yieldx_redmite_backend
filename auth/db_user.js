@@ -27,25 +27,24 @@ const createUser = async ({ username, password }) => {
   return user
 }
 
-const findUser = async ({ username }, full = false) => {
+const findUser = async ({ username }) => {
   return await new sql.Request()
     .query(`SELECT * FROM RedMiteUsers WHERE username = '${username}'`)
     .then((res) => {
       const row = res?.recordset?.[0]
       if (!row) throw new Error('User not found')
-      else return full ? row : { username: row.username, id: row.id }
+      else return row
     })
 }
 
-const validatePassword = (user, inputPassword) => {
-  const inputHash = crypto.pbkdf2Sync(
-    inputPassword,
-    user.salt,
-    1000,
-    64,
-    'sha512'
-  )
-  return crypto.timingSafeEqual(user.hashedPassword, inputHash)
+const findUserByID = async ({ userID }) => {
+  return await new sql.Request()
+    .query(`SELECT * FROM RedMiteUsers WHERE id = '${userID}'`)
+    .then((res) => {
+      const row = res?.recordset?.[0]
+      if (!row) throw new Error('User not found')
+      else return row
+    })
 }
 
-module.exports = { createUser, findUser, validatePassword }
+module.exports = { createUser, findUser, findUserByID }
