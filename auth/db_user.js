@@ -47,4 +47,17 @@ const findUserByID = async ({ userID }) => {
     })
 }
 
-module.exports = { createUser, findUser, findUserByID }
+const createSession = async (sid, userID, createdAt) => {
+  await new sql.Request()
+    .input('sid', sql.TYPES.UniqueIdentifier, sid)
+    .input('userID', sql.TYPES.NVarChar(50), userID)
+    .input('createdAt', sql.TYPES.DateTime2(3), new Date(createdAt))
+    .query(
+      `
+  INSERT INTO Sessions (sid, userID, createdAt)
+  VALUES (@sid, @userID, @createdAt)
+  `
+    )
+}
+
+module.exports = { createUser, findUser, findUserByID, createSession }

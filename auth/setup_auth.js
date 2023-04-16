@@ -10,6 +10,13 @@ IF object_id('RedMiteUsers') is null
     salt varBinary(MAX),
     createdAt datetime2(3)
   )
+
+IF object_id('Sessions') is null
+  CREATE TABLE Sessions ( 
+    sid UNIQUEIDENTIFIER PRIMARY KEY, 
+    userID UNIQUEIDENTIFIER not null, 
+    createdAt datetime2(3)
+  )
 `)
 
 module.exports = setupAuth

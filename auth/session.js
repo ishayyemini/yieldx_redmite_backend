@@ -1,16 +1,33 @@
 const Iron = require('@hapi/iron')
+const { v4: uuid } = require('uuid')
 
-const { getTokenCookie, MAX_AGE, setTokenCookie } = require('./auth_cookies')
+const { createSession } = require('./db_user')
+const {
+  getTokenCookie,
+  setTokenCookie,
+  ACCESS_MAX_AGE,
+  REFRESH_MAX_AGE,
+} = require('./auth_cookies')
 
 const TOKEN_SECRET = process.env.TOKEN_SECRET
 
 const setLoginSession = async (res, userID) => {
   const createdAt = Date.now()
-  // Create a session object with a max age that we can validate later
-  const obj = { userID, createdAt, maxAge: MAX_AGE }
-  const token = await Iron.seal(obj, TOKEN_SECRET, Iron.defaults)
+  const sid = uuid()
 
-  setTokenCookie(res, token)
+  const accessToken = await Iron.seal(
+    { userID, createdAt, maxAge: ACCESS_MAX_AGE },
+    TOKEN_SECRET,
+    Iron.defaults
+  )
+  const refreshToken = await Iron.seal(
+    { sid, createdAt, maxAge: REFRESH_MAX_AGE },
+    TOKEN_SECRET,
+    Iron.defaults
+  )
+  await createSession(sid, userID, createdAt)
+
+  setTokenCookie(res, accessToken, refreshToken)
 }
 
 const getLoginSession = async (req) => {
