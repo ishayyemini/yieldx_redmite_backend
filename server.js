@@ -10,7 +10,12 @@ const setupAuth = require('./auth/setup_auth')
 
 const app = express()
 
-app.use(cors({ credentials: true, origin: 'http://localhost:3000' })) // TODO update origin when we have an actual website
+app.use(
+  cors({
+    credentials: true,
+    origin: ['http://localhost:3000', 'http://192.168.1.27:3000'],
+  })
+) // TODO update origin when we have an actual website
 app.use(express.json())
 passport.use('local', localStrategy)
 
@@ -30,7 +35,7 @@ app.post('/login', async (req, res) => {
   try {
     const user = await authenticate('local', req, res)
     await setLoginSession(res, { ...user })
-    res.status(200).send({ done: true })
+    res.status(200).json({ user: { username: user.username, id: user.id } })
   } catch (error) {
     console.error(error)
     res.status(401).send(error.message)
@@ -41,7 +46,7 @@ app.post('/user', async (req, res) => {
   try {
     const session = await getLoginSession(req)
     const user = (session && (await findUser(session))) ?? null
-    res.status(200).json({ user })
+    res.status(200).json({ user: { username: user.username, id: user.id } })
   } catch (error) {
     console.error(error)
     res.status(500).send('Authentication token is invalid, please log in')
@@ -52,7 +57,7 @@ app.post('/signup', async (req, res) => {
   try {
     const user = await createUser(req.body)
     await setLoginSession(res, { ...user })
-    res.status(200).send({ done: true })
+    res.status(200).json({ user: { username: user.username, id: user.id } })
   } catch (error) {
     console.error(error)
     res.status(500).send(error.message)
