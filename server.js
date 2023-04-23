@@ -10,16 +10,7 @@ const setupAuth = require('./auth/setup_auth')
 
 const app = express()
 
-app.use(
-  cors({
-    credentials: true,
-    origin: [
-      'http://localhost:3000',
-      'http://192.168.1.27:3000',
-      'https://192.168.1.27:3000',
-    ],
-  })
-) // TODO update origin when we have an actual website
+app.use(cors({ credentials: true, origin: true })) // TODO update origin when we have an actual website
 app.use(express.json())
 passport.use('local', localStrategy)
 

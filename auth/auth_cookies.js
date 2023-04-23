@@ -3,7 +3,7 @@ const { serialize, parse } = require('cookie')
 const ACCESS_TOKEN_NAME = 'access-token'
 const REFRESH_TOKEN_NAME = 'refresh-token'
 
-const ACCESS_MAX_AGE = 10 * 1 * 1 // 1 minute
+const ACCESS_MAX_AGE = 60 * 60 * 8 // 8 hours
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30 // 1 month
 
 const setTokenCookie = (res, accessToken, refreshToken) => {
