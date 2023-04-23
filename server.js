@@ -39,7 +39,7 @@ app.post('/login', async (req, res) => {
 
 app.post('/user', async (req, res) => {
   try {
-    const user = await getLoginSession(req).then((session) =>
+    const user = await getLoginSession(req, res).then((session) =>
       findUserByID(session)
     )
     res.status(200).json({ user: { username: user.username, id: user.id } })

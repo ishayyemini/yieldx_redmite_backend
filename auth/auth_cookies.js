@@ -47,7 +47,7 @@ const parseCookies = (req) => {
 
 const getTokenCookie = (req) => {
   const cookies = parseCookies(req)
-  return cookies[ACCESS_TOKEN_NAME]
+  return [cookies[ACCESS_TOKEN_NAME], cookies[REFRESH_TOKEN_NAME]]
 }
 
 module.exports = {

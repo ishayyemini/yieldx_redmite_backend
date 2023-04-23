@@ -47,17 +47,34 @@ const findUserByID = async ({ userID }) => {
     })
 }
 
-const createSession = async (sid, userID, createdAt) => {
+const createSession = async (sid, userID, createdAt, maxAge) => {
   await new sql.Request()
     .input('sid', sql.TYPES.UniqueIdentifier, sid)
     .input('userID', sql.TYPES.NVarChar(50), userID)
     .input('createdAt', sql.TYPES.DateTime2(3), new Date(createdAt))
+    .input('maxAge', sql.TYPES.Int, maxAge)
     .query(
       `
-  INSERT INTO Sessions (sid, userID, createdAt)
-  VALUES (@sid, @userID, @createdAt)
+  INSERT INTO Sessions (sid, userID, createdAt, maxAge)
+  VALUES (@sid, @userID, @createdAt, @maxAge)
   `
     )
 }
 
-module.exports = { createUser, findUser, findUserByID, createSession }
+const findAndDeleteSession = async ({ sid }) => {
+  return await new sql.Request()
+    .query(`DELETE Sessions OUTPUT DELETED.* WHERE sid = '${sid}'`)
+    .then((res) => {
+      const row = res?.recordset?.[0]
+      if (!row) throw new Error('Session not found')
+      else return row
+    })
+}
+
+module.exports = {
+  createUser,
+  findUser,
+  findUserByID,
+  createSession,
+  findAndDeleteSession,
+}

@@ -15,7 +15,8 @@ IF object_id('Sessions') is null
   CREATE TABLE Sessions ( 
     sid UNIQUEIDENTIFIER PRIMARY KEY, 
     userID UNIQUEIDENTIFIER not null, 
-    createdAt datetime2(3)
+    createdAt datetime2(3),
+    maxAge int not null
   )
 `)
 

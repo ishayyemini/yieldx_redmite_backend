@@ -1,7 +1,7 @@
 const Iron = require('@hapi/iron')
 const { v4: uuid } = require('uuid')
 
-const { createSession } = require('./db_user')
+const { createSession, findAndDeleteSession } = require('./db_user')
 const {
   getTokenCookie,
   setTokenCookie,
@@ -25,25 +25,40 @@ const setLoginSession = async (res, userID) => {
     TOKEN_SECRET,
     Iron.defaults
   )
-  await createSession(sid, userID, createdAt)
+  await createSession(sid, userID, createdAt, REFRESH_MAX_AGE)
 
   setTokenCookie(res, accessToken, refreshToken)
+
+  return { userID, createdAt, maxAge: ACCESS_MAX_AGE }
 }
 
-const getLoginSession = async (req) => {
-  const token = getTokenCookie(req)
+const getLoginSession = async (req, res) => {
+  const [token, refreshToken] = getTokenCookie(req)
 
-  if (!token) return
-
-  const session = await Iron.unseal(token, TOKEN_SECRET, Iron.defaults)
-  const expiresAt = session.createdAt + session.maxAge * 1000
-
-  // Validate the expiration date of the session
-  if (Date.now() > expiresAt) {
-    throw new Error('Session expired')
+  let session, expiresAt
+  if (token) {
+    session = await Iron.unseal(token, TOKEN_SECRET, Iron.defaults)
+    expiresAt = session.createdAt + session.maxAge * 1000
   }
+  if ((!token || Date.now() > expiresAt) && refreshToken)
+    session = replaceLoginSession(res, refreshToken)
 
   return session
+}
+
+const replaceLoginSession = async (res, refreshToken) => {
+  const refresh = await Iron.unseal(refreshToken, TOKEN_SECRET, Iron.defaults)
+  if (!refresh?.sid) throw new Error('Session expired')
+
+  const dbSession = await findAndDeleteSession(refresh)
+  if (
+    !dbSession ||
+    Date.now() >
+      new Date(dbSession.createdAt).getTime() + dbSession.maxAge * 1000
+  )
+    throw new Error('Session expired')
+
+  return await setLoginSession(res, dbSession.userID)
 }
 
 module.exports = { getLoginSession, setLoginSession }
