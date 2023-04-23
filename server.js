@@ -5,7 +5,11 @@ const passport = require('passport')
 
 const { authenticate, localStrategy } = require('./auth/login')
 const { createUser, findUserByID } = require('./auth/db_user')
-const { getLoginSession, setLoginSession } = require('./auth/session')
+const {
+  getLoginSession,
+  setLoginSession,
+  clearLoginSession,
+} = require('./auth/session')
 const setupAuth = require('./auth/setup_auth')
 
 const app = express()
@@ -54,6 +58,16 @@ app.post('/signup', async (req, res) => {
     const user = await createUser(req.body)
     await setLoginSession(res, user.id)
     res.status(200).json({ user: { username: user.username, id: user.id } })
+  } catch (error) {
+    console.error(error)
+    res.status(500).send(error.message)
+  }
+})
+
+app.post('/logout', async (req, res) => {
+  try {
+    await clearLoginSession(req, res)
+    res.status(200).send('Logged out')
   } catch (error) {
     console.error(error)
     res.status(500).send(error.message)

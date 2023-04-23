@@ -61,8 +61,8 @@ const createSession = async (sid, userID, createdAt, maxAge) => {
     )
 }
 
-const findAndDeleteSession = async ({ sid }) => {
-  return await new sql.Request()
+const findAndDeleteSession = ({ sid }) => {
+  return new sql.Request()
     .query(`DELETE Sessions OUTPUT DELETED.* WHERE sid = '${sid}'`)
     .then((res) => {
       const row = res?.recordset?.[0]

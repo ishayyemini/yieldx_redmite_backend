@@ -5,6 +5,7 @@ const { createSession, findAndDeleteSession } = require('./db_user')
 const {
   getTokenCookie,
   setTokenCookie,
+  removeTokenCookie,
   ACCESS_MAX_AGE,
   REFRESH_MAX_AGE,
 } = require('./auth_cookies')
@@ -61,4 +62,11 @@ const replaceLoginSession = async (res, refreshToken) => {
   return await setLoginSession(res, dbSession.userID)
 }
 
-module.exports = { getLoginSession, setLoginSession }
+const clearLoginSession = async (req, res) => {
+  const [, refreshToken] = getTokenCookie(req)
+  const refresh = await Iron.unseal(refreshToken, TOKEN_SECRET, Iron.defaults)
+  if (refresh?.sid) findAndDeleteSession(refresh).catch((e) => console.log(e))
+  removeTokenCookie(res)
+}
+
+module.exports = { getLoginSession, setLoginSession, clearLoginSession }

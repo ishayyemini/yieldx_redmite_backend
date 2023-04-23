@@ -28,12 +28,11 @@ const setTokenCookie = (res, accessToken, refreshToken) => {
 }
 
 const removeTokenCookie = (res) => {
-  const cookie = serialize(ACCESS_TOKEN_NAME, '', {
-    maxAge: -1,
-    path: '/',
-  })
+  const config = { maxAge: -1, secure: true, path: '/', sameSite: 'None' }
+  const accessCookie = serialize(ACCESS_TOKEN_NAME, '', config)
+  const refreshCookie = serialize(REFRESH_TOKEN_NAME, '', config)
 
-  res.setHeader('Set-Cookie', cookie)
+  res.setHeader('Set-Cookie', [accessCookie, refreshCookie])
 }
 
 const parseCookies = (req) => {
