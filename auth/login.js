@@ -11,7 +11,7 @@ const localStrategy = new Local.Strategy({}, (username, password, cb) => {
       else cb(new Error('Invalid username and password combination'))
     })
     .catch((error) => {
-      console.log(error)
+      console.log(error) // TODO accurate error
       cb(new Error('Invalid username and password combination'))
     })
 })

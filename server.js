@@ -14,9 +14,17 @@ const setupAuth = require('./auth/setup_auth')
 
 const app = express()
 
-app.use(cors({ credentials: true, origin: true })) // TODO update origin when we have an actual website
+app.use(cors({ credentials: true, origin: true }))
 app.use(express.json())
 passport.use('local', localStrategy)
+
+const withAuth = async (req, res, next) => {
+  res.locals.session = await getLoginSession(req, res).catch((e) => {
+    console.log(e)
+    res.sendStatus(401)
+  })
+  next()
+}
 
 app.get('/test', (req, res) => {
   res.send('test ok!')
@@ -31,47 +39,27 @@ app.get('/fail', (req, res) => {
 })
 
 app.post('/login', async (req, res) => {
-  try {
-    const user = await authenticate('local', req, res)
-    await setLoginSession(res, user.id)
-    res.status(200).json({ user: { username: user.username, id: user.id } })
-  } catch (error) {
-    console.error(error)
-    res.status(401).send(error.message)
-  }
+  const user = await authenticate('local', req, res).catch(
+    () => res.sendStatus(400) // TODO accurate error
+  )
+  await setLoginSession(res, user.id)
+  res.json({ user: { username: user.username, id: user.id } })
 })
 
-app.post('/user', async (req, res) => {
-  try {
-    const user = await getLoginSession(req, res).then((session) =>
-      findUserByID(session)
-    )
-    res.status(200).json({ user: { username: user.username, id: user.id } })
-  } catch (error) {
-    console.error(error)
-    res.status(500).send('Authentication token is invalid, please log in')
-  }
+app.post('/user', withAuth, async (req, res) => {
+  const user = await findUserByID(res.locals.session)
+  res.json({ user: { username: user.username, id: user.id } })
 })
 
 app.post('/signup', async (req, res) => {
-  try {
-    const user = await createUser(req.body)
-    await setLoginSession(res, user.id)
-    res.status(200).json({ user: { username: user.username, id: user.id } })
-  } catch (error) {
-    console.error(error)
-    res.status(500).send(error.message)
-  }
+  const user = await createUser(req.body) // TODO custom errors
+  await setLoginSession(res, user.id)
+  res.json({ user: { username: user.username, id: user.id } })
 })
 
 app.post('/logout', async (req, res) => {
-  try {
-    await clearLoginSession(req, res)
-    res.status(200).send('Logged out')
-  } catch (error) {
-    console.error(error)
-    res.status(500).send(error.message)
-  }
+  await clearLoginSession(req, res)
+  res.send('Logged out')
 })
 
 const config = {

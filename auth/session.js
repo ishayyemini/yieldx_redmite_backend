@@ -42,8 +42,9 @@ const getLoginSession = async (req, res) => {
     expiresAt = session.createdAt + session.maxAge * 1000
   }
   if ((!token || Date.now() > expiresAt) && refreshToken)
-    session = replaceLoginSession(res, refreshToken)
+    session = await replaceLoginSession(res, refreshToken)
 
+  if (!session) throw new Error('No current session ')
   return session
 }
 
@@ -65,7 +66,8 @@ const replaceLoginSession = async (res, refreshToken) => {
 const clearLoginSession = async (req, res) => {
   const [, refreshToken] = getTokenCookie(req)
   const refresh = await Iron.unseal(refreshToken, TOKEN_SECRET, Iron.defaults)
-  if (refresh?.sid) findAndDeleteSession(refresh).catch((e) => console.log(e))
+  if (refresh?.sid)
+    await findAndDeleteSession(refresh).catch((e) => console.log(e))
   removeTokenCookie(res)
 }
 
