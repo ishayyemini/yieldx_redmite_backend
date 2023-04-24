@@ -27,8 +27,8 @@ const createUser = async ({ username, password }) => {
   return user
 }
 
-const findUser = async ({ username }) => {
-  return await new sql.Request()
+const findUser = ({ username }) => {
+  return new sql.Request()
     .query(`SELECT * FROM RedMiteUsers WHERE username = '${username}'`)
     .then((res) => {
       const row = res?.recordset?.[0]

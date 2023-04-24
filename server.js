@@ -39,9 +39,10 @@ app.get('/fail', (req, res) => {
 })
 
 app.post('/login', async (req, res) => {
-  const user = await authenticate('local', req, res).catch(
-    () => res.sendStatus(400) // TODO accurate error
-  )
+  const user = await authenticate('local', req, res).catch((err) => {
+    if (err.message === 'Bad request') res.sendStatus(400)
+    else throw err
+  })
   await setLoginSession(res, user.id)
   res.json({ user: { username: user.username, id: user.id } })
 })

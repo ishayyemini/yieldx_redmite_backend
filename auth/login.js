@@ -7,23 +7,24 @@ const { findUser } = require('./db_user')
 const localStrategy = new Local.Strategy({}, (username, password, cb) => {
   findUser({ username })
     .then((user) => {
-      if (user && validatePassword(user, password)) cb(null, user)
-      else cb(new Error('Invalid username and password combination'))
+      if (validatePassword(user, password)) cb(null, user)
+      else cb(new Error('Bad request'))
     })
     .catch((error) => {
-      console.log(error) // TODO accurate error
-      cb(new Error('Invalid username and password combination'))
+      console.log(error)
+      cb(
+        new Error(
+          error.message === 'User not found' ? 'Bad request' : 'Server error'
+        )
+      )
     })
 })
 
 const authenticate = (method, req, res) =>
   new Promise((resolve, reject) => {
     passport.authenticate(method, { session: false }, (error, token) => {
-      if (error) {
-        reject(error)
-      } else {
-        resolve(token)
-      }
+      if (error) reject(error)
+      else resolve(token)
     })(req, res)
   })
 
@@ -35,6 +36,7 @@ const validatePassword = (user, inputPassword) => {
     64,
     'sha512'
   )
+  console.log(user.hashedPassword)
   return crypto.timingSafeEqual(user.hashedPassword, inputHash)
 }
 
