@@ -37,7 +37,6 @@ const validatePassword = (user, inputPassword) => {
     64,
     'sha512'
   )
-  console.log(user.hashedPassword)
   return crypto.timingSafeEqual(user.hashedPassword, inputHash)
 }
 
