@@ -3,6 +3,7 @@ const sql = require('mssql')
 const cors = require('cors')
 const passport = require('passport')
 const status = require('statuses')
+const expressWs = require('express-ws')
 
 const { authenticate, localStrategy } = require('./auth/login')
 const { createUser, findUserByID } = require('./auth/db_user')
@@ -10,12 +11,20 @@ const {
   getLoginSession,
   setLoginSession,
   clearLoginSession,
+  refreshLoginSession,
 } = require('./auth/session')
 const setupAuth = require('./auth/setup_auth')
 
 const app = express()
+expressWs(app)
 
-app.use(cors({ credentials: true, origin: true }))
+app.use(
+  cors({
+    credentials: true,
+    origin: ['https://yieldx-biosec.com', 'http://localhost:3000'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+)
 app.use(express.json())
 app.use((req, res, next) => {
   const oldJson = res.json
@@ -34,7 +43,7 @@ app.use((req, res, next) => {
   }
   res.send = (data, ...args) => {
     oldSend.apply(res, [
-      res.statusCode !== 200
+      res.statusCode !== 200 && !data.startsWith('{')
         ? JSON.stringify({ error: { code: res.statusCode, message: data } })
         : data,
       ...args,
@@ -48,12 +57,19 @@ app.use((req, res, next) => {
 passport.use('local', localStrategy)
 
 const withAuth = async (req, res, next) => {
-  res.locals.session = await getLoginSession(req, res).catch((e) => {
+  // For now, session contains just the userID
+  res.locals.session = await getLoginSession(req).catch((e) => {
     console.log(e)
     res.sendStatus(401)
   })
   next()
 }
+
+app.ws('/echo', (ws) => {
+  ws.on('message', (msg) => {
+    ws.send(msg)
+  })
+})
 
 app.get('/test', (req, res) => {
   res.send('test ok!')
@@ -67,23 +83,37 @@ app.get('/fail', (req, res) => {
   res.send('failed to login')
 })
 
+// Validates user credentials, creates session and returns tokens
 app.post('/login', async (req, res) => {
-  const user = await authenticate('local', req, res).catch((err) => {
-    if (err.message === 'Bad request') res.status(400).send('Bad login details')
-    else throw err
-  })
-  await setLoginSession(res, user.id)
-  res.json({ user: { username: user.username, id: user.id } })
+  const { username, id } = await authenticate('local', req, res).catch(
+    (err) => {
+      if (err.message === 'Bad request')
+        res.status(400).send('Bad login details')
+      else throw err
+    }
+  )
+  const accessToken = await setLoginSession(req, res, id)
+  res.json({ user: { username, id }, token: accessToken })
 })
 
+// Creates new access and refresh tokens if user has valid refresh token
+app.post('/refresh', async (req, res) => {
+  const accessToken = await refreshLoginSession(req, res).catch((err) => {
+    if (err.message === 'Session expired') res.sendStatus(401)
+    else throw err
+  })
+  res.json({ token: accessToken })
+})
+
+// Gets user information if authenticated
 app.post('/user', withAuth, async (req, res) => {
-  const user = await findUserByID(res.locals.session)
-  res.json({ user: { username: user.username, id: user.id } })
+  const { username, id } = await findUserByID(res.locals.session)
+  res.json({ user: { username, id } })
 })
 
 app.post('/signup', async (req, res) => {
   const user = await createUser(req.body) // TODO custom errors
-  await setLoginSession(res, user.id)
+  await setLoginSession(req, res, user.id)
   res.json({ user: { username: user.username, id: user.id } })
 })
 
@@ -91,6 +121,7 @@ app.post('/logout', async (req, res) => {
   await clearLoginSession(req, res)
   res.sendStatus(200)
 })
+
 app.use((err, req, res, next) => {
   if (res?.headersSent) return next(err)
   if (res?.status) {
