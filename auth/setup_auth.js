@@ -13,10 +13,12 @@ IF object_id('RedMiteUsers') is null
 
 IF object_id('Sessions') is null
   CREATE TABLE Sessions ( 
-    sid UNIQUEIDENTIFIER PRIMARY KEY, 
+    session UNIQUEIDENTIFIER not null, 
+    token UNIQUEIDENTIFIER PRIMARY KEY, 
     userID UNIQUEIDENTIFIER not null, 
     createdAt datetime2(3),
-    maxAge int not null
+    maxAge int not null,
+    invalid bit 
   )
 `)
 

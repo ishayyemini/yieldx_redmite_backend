@@ -1,5 +1,9 @@
 const sql = require('mssql')
 const crypto = require('crypto')
+const { v4: uuid } = require('uuid')
+
+const username = 'lior'
+const password = '1234'
 
 const config = {
   user: 'sa',
@@ -11,16 +15,18 @@ const config = {
 sql.connect(config).then(() => {
   const salt = crypto.randomBytes(16)
   new sql.Request()
+    .input('id', sql.TYPES.UniqueIdentifier(), uuid())
+    .input('username', sql.TYPES.NVarChar(50), username)
     .input(
-      'hashed_password',
+      'hashedPassword',
       sql.TYPES.VarBinary(sql.MAX),
-      crypto.pbkdf2Sync('1234', salt, 310000, 32, 'sha512')
+      crypto.pbkdf2Sync(password, salt, 310000, 32, 'sha512')
     )
     .input('salt', sql.TYPES.VarBinary(sql.MAX), salt)
     .query(
       `
-  INSERT INTO RedMiteUsers (username, hashed_password, salt)
-  VALUES ('ishay', @hashed_password, @salt)
+  INSERT INTO RedMiteUsers (id, username, hashedPassword, salt)
+  VALUES (@id, @username, @hashedPassword, @salt)
   `
     )
     .then(() => {

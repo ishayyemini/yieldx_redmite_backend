@@ -1,74 +1,86 @@
 const Iron = require('@hapi/iron')
+const jwt = require('jsonwebtoken')
 const { v4: uuid } = require('uuid')
 
-const { createSession, findAndDeleteSession } = require('./db_user')
 const {
-  getTokenCookie,
+  createSession,
+  findAndInvalidateSession,
+  deleteSessions,
+} = require('./db_user')
+const {
+  getTokens,
   setTokenCookie,
   removeTokenCookie,
   ACCESS_MAX_AGE,
   REFRESH_MAX_AGE,
 } = require('./auth_cookies')
+const { TOKEN_SECRET } = require('../tokens.json')
 
-const TOKEN_SECRET = process.env.TOKEN_SECRET
-
-const setLoginSession = async (res, userID) => {
+const setLoginSession = async (req, res, userID, prevSession) => {
   const createdAt = Date.now()
-  const sid = uuid()
+  const session = prevSession || uuid()
+  const token = uuid()
 
-  const accessToken = await Iron.seal(
-    { userID, createdAt, maxAge: ACCESS_MAX_AGE },
-    TOKEN_SECRET,
-    Iron.defaults
-  )
-  const refreshToken = await Iron.seal(
-    { sid, createdAt, maxAge: REFRESH_MAX_AGE },
-    TOKEN_SECRET,
-    Iron.defaults
-  )
-  await createSession(sid, userID, createdAt, REFRESH_MAX_AGE)
+  const accessToken = jwt.sign({ userID }, TOKEN_SECRET, {
+    expiresIn: ACCESS_MAX_AGE,
+  })
 
-  setTokenCookie(res, accessToken, refreshToken)
+  const refreshObj = { session, token, createdAt, maxAge: REFRESH_MAX_AGE }
+  const refreshToken = await Iron.seal(refreshObj, TOKEN_SECRET, Iron.defaults)
+  await createSession({ ...refreshObj, userID })
+  setTokenCookie(req, res, refreshToken)
 
-  return { userID, createdAt, maxAge: ACCESS_MAX_AGE }
+  return accessToken
 }
 
-const getLoginSession = async (req, res) => {
-  const [token, refreshToken] = getTokenCookie(req)
+const getLoginSession = async (req) => {
+  const [token] = getTokens(req)
 
-  let session, expiresAt
-  if (token) {
-    session = await Iron.unseal(token, TOKEN_SECRET, Iron.defaults)
-    expiresAt = session.createdAt + session.maxAge * 1000
-  }
-  if ((!token || Date.now() > expiresAt) && refreshToken)
-    session = await replaceLoginSession(res, refreshToken)
+  let session
+  if (token) session = jwt.verify(token, TOKEN_SECRET)
 
-  if (!session) throw new Error('No current session ')
+  if (!token || !session) throw new Error('Unauthorized')
+
   return session
 }
 
-const replaceLoginSession = async (res, refreshToken) => {
-  const refresh = await Iron.unseal(refreshToken, TOKEN_SECRET, Iron.defaults)
-  if (!refresh?.sid) throw new Error('Session expired')
+const refreshLoginSession = async (req, res) => {
+  const [, refreshToken] = getTokens(req)
 
-  const dbSession = await findAndDeleteSession(refresh)
+  const refresh = await Iron.unseal(
+    refreshToken,
+    TOKEN_SECRET,
+    Iron.defaults
+  ).catch(() => {})
+  if (!refresh?.session) throw new Error('Session expired')
+
+  const dbSession = await findAndInvalidateSession(refresh)
   if (
     !dbSession ||
     Date.now() >
       new Date(dbSession.createdAt).getTime() + dbSession.maxAge * 1000
-  )
+  ) {
+    await deleteSessions(refresh.session)
     throw new Error('Session expired')
+  }
 
-  return await setLoginSession(res, dbSession.userID)
+  return await setLoginSession(req, res, dbSession.userID, dbSession.session)
 }
 
 const clearLoginSession = async (req, res) => {
-  const [, refreshToken] = getTokenCookie(req)
-  const refresh = await Iron.unseal(refreshToken, TOKEN_SECRET, Iron.defaults)
-  if (refresh?.sid)
-    await findAndDeleteSession(refresh).catch((e) => console.log(e))
+  const [, refreshToken] = getTokens(req)
+  const refresh = await Iron.unseal(
+    refreshToken,
+    TOKEN_SECRET,
+    Iron.defaults
+  ).catch(() => {})
+  if (refresh?.session) await deleteSessions(refresh.session)
   removeTokenCookie(res)
 }
 
-module.exports = { getLoginSession, setLoginSession, clearLoginSession }
+module.exports = {
+  getLoginSession,
+  setLoginSession,
+  clearLoginSession,
+  refreshLoginSession,
+}

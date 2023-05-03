@@ -47,28 +47,37 @@ const findUserByID = async ({ userID }) => {
     })
 }
 
-const createSession = async (sid, userID, createdAt, maxAge) => {
+const createSession = async ({ session, token, userID, createdAt, maxAge }) => {
   await new sql.Request()
-    .input('sid', sql.TYPES.UniqueIdentifier, sid)
+    .input('session', sql.TYPES.UniqueIdentifier, session)
+    .input('token', sql.TYPES.UniqueIdentifier, token)
     .input('userID', sql.TYPES.NVarChar(50), userID)
     .input('createdAt', sql.TYPES.DateTime2(3), new Date(createdAt))
     .input('maxAge', sql.TYPES.Int, maxAge)
     .query(
       `
-  INSERT INTO Sessions (sid, userID, createdAt, maxAge)
-  VALUES (@sid, @userID, @createdAt, @maxAge)
+  INSERT INTO Sessions (session, token, userID, createdAt, maxAge)
+  VALUES (@session, @token, @userID, @createdAt, @maxAge)
   `
     )
 }
 
-const findAndDeleteSession = ({ sid }) => {
+const deleteSessions = (session) => {
+  return new sql.Request().query(`DELETE Sessions WHERE session = '${session}'`)
+}
+
+const findAndInvalidateSession = ({ session, token }) => {
   return new sql.Request()
-    .query(`DELETE Sessions OUTPUT DELETED.* WHERE sid = '${sid}'`)
-    .then((res) => {
-      const row = res?.recordset?.[0]
-      if (!row) throw new Error('Session not found')
-      else return row
-    })
+    .query(
+      `
+  UPDATE Sessions 
+  SET invalid = 1 
+  OUTPUT deleted.* 
+  WHERE COALESCE(invalid, 'false') != 'true' and session = '${session}' and
+        token = '${token}'
+    `
+    )
+    .then((res) => res?.recordset?.[0])
 }
 
 module.exports = {
@@ -76,5 +85,6 @@ module.exports = {
   findUser,
   findUserByID,
   createSession,
-  findAndDeleteSession,
+  findAndInvalidateSession,
+  deleteSessions,
 }
