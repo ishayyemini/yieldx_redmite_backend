@@ -23,7 +23,7 @@ const removeTokenCookie = (res) => {
   const refreshCookie = serialize(REFRESH_TOKEN_NAME, '', {
     maxAge: -1,
     secure: true,
-    path: '/',
+    path: '/refresh',
     sameSite: 'None',
   })
 
