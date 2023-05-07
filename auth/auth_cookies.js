@@ -11,7 +11,7 @@ const setTokenCookie = (req, res, refreshToken) => {
     expires: new Date(Date.now() + REFRESH_MAX_AGE * 1000),
     httpOnly: true,
     secure: true,
-    path: '/refresh',
+    path: '/auth',
     sameSite:
       req.headers.origin === 'http://localhost:3000' ? 'None' : 'Strict',
   })
@@ -23,7 +23,7 @@ const removeTokenCookie = (res) => {
   const refreshCookie = serialize(REFRESH_TOKEN_NAME, '', {
     maxAge: -1,
     secure: true,
-    path: '/refresh',
+    path: '/auth',
     sameSite: 'None',
   })
 

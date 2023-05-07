@@ -53,11 +53,15 @@ const createSession = async ({ session, token, userID, createdAt, maxAge }) => {
     .input('token', sql.TYPES.UniqueIdentifier, token)
     .input('userID', sql.TYPES.NVarChar(50), userID)
     .input('createdAt', sql.TYPES.DateTime2(3), new Date(createdAt))
-    .input('maxAge', sql.TYPES.Int, maxAge)
+    .input(
+      'validUntil',
+      sql.TYPES.DateTime2(3),
+      new Date(createdAt + 1000 * maxAge)
+    )
     .query(
       `
-  INSERT INTO Sessions (session, token, userID, createdAt, maxAge)
-  VALUES (@session, @token, @userID, @createdAt, @maxAge)
+  INSERT INTO Sessions (session, token, userID, createdAt, validUntil)
+  VALUES (@session, @token, @userID, @createdAt, @validUntil)
   `
     )
 }

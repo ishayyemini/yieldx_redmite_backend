@@ -84,7 +84,7 @@ app.get('/fail', (req, res) => {
 })
 
 // Validates user credentials, creates session and returns tokens
-app.post('/login', async (req, res) => {
+app.post('/auth/login', async (req, res) => {
   const { username, id } = await authenticate('local', req, res).catch(
     (err) => {
       if (err.message === 'Bad request')
@@ -97,7 +97,7 @@ app.post('/login', async (req, res) => {
 })
 
 // Creates new access and refresh tokens if user has valid refresh token
-app.post('/refresh', async (req, res) => {
+app.post('/auth/refresh', async (req, res) => {
   const accessToken = await refreshLoginSession(req, res).catch((err) => {
     if (err.message === 'Session expired') res.sendStatus(401)
     else throw err
@@ -111,13 +111,13 @@ app.post('/user', withAuth, async (req, res) => {
   res.json({ user: { username, id } })
 })
 
-app.post('/signup', async (req, res) => {
+app.post('/auth/signup', async (req, res) => {
   const user = await createUser(req.body) // TODO custom errors
   await setLoginSession(req, res, user.id)
   res.json({ user: { username: user.username, id: user.id } })
 })
 
-app.post('/logout', async (req, res) => {
+app.post('/auth/logout', async (req, res) => {
   await clearLoginSession(req, res)
   res.sendStatus(200)
 })
