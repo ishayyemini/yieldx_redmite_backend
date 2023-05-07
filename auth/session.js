@@ -44,6 +44,13 @@ const getLoginSession = async (req) => {
   return session
 }
 
+const getWSSession = async (token) => {
+  let session
+  if (token) session = jwt.verify(token, TOKEN_SECRET)
+  if (!token || !session) throw new Error('Unauthorized')
+  return session
+}
+
 const refreshLoginSession = async (req, res) => {
   const [, refreshToken] = getTokens(req)
 
@@ -80,6 +87,7 @@ const clearLoginSession = async (req, res) => {
 
 module.exports = {
   getLoginSession,
+  getWSSession,
   setLoginSession,
   clearLoginSession,
   refreshLoginSession,

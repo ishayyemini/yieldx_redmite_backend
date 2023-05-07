@@ -9,6 +9,7 @@ const { authenticate, localStrategy } = require('./auth/login')
 const { createUser, findUserByID } = require('./auth/db_user')
 const {
   getLoginSession,
+  getWSSession,
   setLoginSession,
   clearLoginSession,
   refreshLoginSession,
@@ -66,8 +67,16 @@ const withAuth = async (req, res, next) => {
 }
 
 app.ws('/echo', (ws) => {
-  ws.on('message', (msg) => {
-    ws.send(msg)
+  let user
+  ws.on('message', async (msg) => {
+    if (!user) {
+      user = await getWSSession(msg)
+        .then(findUserByID)
+        .catch(() => ws.close(4004, 'Unauthorized'))
+      ws.send('authorized')
+    } else {
+      ws.send(msg)
+    }
   })
 })
 
