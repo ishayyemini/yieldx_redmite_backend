@@ -74,9 +74,13 @@ const findAndInvalidateSession = ({ session, token }) => {
   return new sql.Request()
     .query(
       `
+  SELECT * 
+  FROM Sessions 
+  WHERE COALESCE(invalid, 'false') != 'true' and session = '${session}' and
+        token = '${token}'
+
   UPDATE Sessions 
   SET invalid = 1 
-  OUTPUT deleted.* 
   WHERE COALESCE(invalid, 'false') != 'true' and session = '${session}' and
         token = '${token}'
     `
