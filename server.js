@@ -4,7 +4,6 @@ const cors = require('cors')
 const passport = require('passport')
 const status = require('statuses')
 const expressWs = require('express-ws')
-const mqtt = require('mqtt')
 
 const { authenticate, localStrategy } = require('./auth/login')
 const { createUser, findUserByID } = require('./auth/db_user')
@@ -16,6 +15,7 @@ const {
   refreshLoginSession,
 } = require('./auth/session')
 const setupAuth = require('./auth/setup_auth')
+const setupClient = require('./mqtt/mqtt')
 
 const app = express()
 expressWs(app)
@@ -67,31 +67,18 @@ const withAuth = async (req, res, next) => {
   next()
 }
 
-app.ws('/echo', (ws) => {
-  let user, client
+app.ws('/mqtt', (ws) => {
+  let token, user
   ws.on('message', async (msg) => {
-    if (!user) {
-      user = await getWSSession(msg)
+    if (!token) {
+      token = msg
+      user = await getWSSession(token)
         .then(findUserByID)
         .catch(() => ws.close(4004, 'Unauthorized'))
       if (user?.username) {
-        client = mqtt.connect(`mqtts://3.64.31.133:8884/`, {
-          rejectUnauthorized: false,
-        })
-        client.on('connect', () => {
-          ws.send('connected to MQTT!')
-          client.subscribe('YIELDX/#')
-          client.on('message', (topic, payload) => {
-            ws.send(`${topic} || ${payload.toString()}`)
-          })
-        })
-        client.on('error', () => {
-          ws.send('MQTT error')
-        })
+        ws.send('authorized')
+        setupClient(ws, user.username)
       }
-      ws.send('authorized')
-    } else {
-      ws.send(msg)
     }
   })
 })
