@@ -6,7 +6,7 @@ const status = require('statuses')
 const expressWs = require('express-ws')
 
 const { authenticate, localStrategy } = require('./auth/login')
-const { createUser, findUserByID } = require('./auth/db_user')
+const { createUser, findUserByID, updateSettings } = require('./auth/db_user')
 const {
   getLoginSession,
   getWSSession,
@@ -121,6 +121,14 @@ app.post('/auth/refresh', async (req, res) => {
 app.post('/user', withAuth, async (req, res) => {
   const { username, id } = await findUserByID(res.locals.session)
   res.json({ user: { username, id } })
+})
+
+app.post('/update-settings', withAuth, async (req, res) => {
+  if (req.body.settings)
+    await updateSettings(res.locals.session, req.body.settings).then(
+      (newSettings) => res.json({ settings: newSettings })
+    )
+  res.sendStatus(400)
 })
 
 app.post('/auth/signup', async (req, res) => {

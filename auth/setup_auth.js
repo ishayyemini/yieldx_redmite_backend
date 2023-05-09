@@ -8,7 +8,8 @@ IF object_id('RedMiteUsers') is null
     username NVARCHAR(50) UNIQUE not null, 
     hashedPassword varBinary(MAX) not null, 
     salt varBinary(MAX),
-    createdAt datetime2(3)
+    createdAt datetime2(3),
+    settings NVARCHAR(MAX)
   )
 
 IF object_id('Sessions') is null

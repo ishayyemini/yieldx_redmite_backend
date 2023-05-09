@@ -47,6 +47,26 @@ const findUserByID = async ({ userID }) => {
     })
 }
 
+const updateSettings = async ({ userID }, settings) => {
+  let newSettings = `(CASE WHEN ISJSON(RedMiteUsers.settings) = 1 
+                         THEN RedMiteUsers.settings
+                         ELSE '{}' END)`
+  Object.entries(settings).forEach(
+    ([key, value]) =>
+      (newSettings = `JSON_MODIFY(${newSettings}, '$.${key}', '${value}')`)
+  )
+  return new sql.Request()
+    .query(
+      `
+  UPDATE RedMiteUsers
+  SET settings = ${newSettings}
+  OUTPUT INSERTED.settings
+  WHERE id = '${userID}'  
+`
+    )
+    .then((res) => JSON.parse(res?.recordset?.[0]?.settings || '{}'))
+}
+
 const createSession = async ({ session, token, userID, createdAt, maxAge }) => {
   await new sql.Request()
     .input('session', sql.TYPES.UniqueIdentifier, session)
@@ -95,4 +115,5 @@ module.exports = {
   createSession,
   findAndInvalidateSession,
   deleteSessions,
+  updateSettings,
 }
