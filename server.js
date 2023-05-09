@@ -106,7 +106,10 @@ app.post('/auth/login', async (req, res) => {
     else throw err
   })
   const accessToken = await setLoginSession(req, res, id)
-  res.json({ user: { username, id, settings }, token: accessToken })
+  res.json({
+    user: { username, id, settings, admin: adminUsers.includes(username) },
+    token: accessToken,
+  })
 })
 
 // Creates new access and refresh tokens if user has valid refresh token
@@ -121,7 +124,9 @@ app.post('/auth/refresh', async (req, res) => {
 // Gets user information if authenticated
 app.post('/user', withAuth, async (req, res) => {
   const { username, id, settings } = await findUserByID(res.locals.session)
-  res.json({ user: { username, id, settings } })
+  res.json({
+    user: { username, id, settings, admin: adminUsers.includes(username) },
+  })
 })
 
 app.post('/update-settings', withAuth, async (req, res) => {
@@ -137,7 +142,14 @@ app.post('/update-settings', withAuth, async (req, res) => {
 app.post('/auth/signup', async (req, res) => {
   const user = await createUser(req.body) // TODO custom errors
   await setLoginSession(req, res, user.id)
-  res.json({ user: { username: user.username, id: user.id, settings: {} } })
+  res.json({
+    user: {
+      username: user.username,
+      id: user.id,
+      settings: {},
+      admin: adminUsers.includes(user.username),
+    },
+  })
 })
 
 app.post('/auth/logout', async (req, res) => {
