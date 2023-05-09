@@ -33,7 +33,8 @@ const findUser = ({ username }) => {
     .then((res) => {
       const row = res?.recordset?.[0]
       if (!row) throw new Error('User not found')
-      else return row
+      row.settings = JSON.parse(row.settings || '{}')
+      return row
     })
 }
 
@@ -43,7 +44,8 @@ const findUserByID = async ({ userID }) => {
     .then((res) => {
       const row = res?.recordset?.[0]
       if (!row) throw new Error('User not found')
-      else return row
+      row.settings = JSON.parse(row.settings || '{}')
+      return row
     })
 }
 

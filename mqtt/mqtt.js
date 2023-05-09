@@ -1,12 +1,11 @@
 const mqtt = require('mqtt')
 
 const adminUsers = ['ishay2', 'lior', 'amit']
-const setupClient = (ws, username) => {
+const setupClient = (ws, user) => {
   let store = {}
+  const url = user.settings?.mqtt || 'mqtts://broker.hivemq.com:8883'
 
-  const client = mqtt.connect(`mqtts://broker.hivemq.com:8883/`, {
-    rejectUnauthorized: false,
-  })
+  const client = mqtt.connect(url, { rejectUnauthorized: false })
   client.on('connect', () => {
     client.subscribe(['YIELDX/STAT/RM/#', 'sensdata/#'])
     client.on('message', (topic, payload) => {
@@ -19,13 +18,16 @@ const setupClient = (ws, username) => {
           ...store,
           [data.id]: { ...(store[data.id] ?? {}), ...data },
         }
-        if ([...adminUsers, store[data.id].customer ?? ''].includes(username))
+        if (
+          [...adminUsers, store[data.id].customer ?? ''].includes(user.username)
+        )
           ws.send(JSON.stringify(store[data.id]))
       }
     })
   })
-  client.on('error', () => {
-    ws.send('MQTT error')
+  client.on('error', (error) => {
+    console.log(error)
+    ws.close(4004, `MQTT error: ${error.message}`)
   })
 }
 

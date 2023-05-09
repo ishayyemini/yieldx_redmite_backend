@@ -77,7 +77,7 @@ app.ws('/mqtt', (ws) => {
         .catch(() => ws.close(4004, 'Unauthorized'))
       if (user?.username) {
         ws.send('authorized')
-        setupClient(ws, user.username)
+        setupClient(ws, user)
       }
     }
   })
@@ -97,15 +97,16 @@ app.get('/fail', (req, res) => {
 
 // Validates user credentials, creates session and returns tokens
 app.post('/auth/login', async (req, res) => {
-  const { username, id } = await authenticate('local', req, res).catch(
-    (err) => {
-      if (err.message === 'Bad request')
-        res.status(400).send('Bad login details')
-      else throw err
-    }
-  )
+  const { username, id, settings } = await authenticate(
+    'local',
+    req,
+    res
+  ).catch((err) => {
+    if (err.message === 'Bad request') res.status(400).send('Bad login details')
+    else throw err
+  })
   const accessToken = await setLoginSession(req, res, id)
-  res.json({ user: { username, id }, token: accessToken })
+  res.json({ user: { username, id, settings }, token: accessToken })
 })
 
 // Creates new access and refresh tokens if user has valid refresh token
@@ -119,8 +120,8 @@ app.post('/auth/refresh', async (req, res) => {
 
 // Gets user information if authenticated
 app.post('/user', withAuth, async (req, res) => {
-  const { username, id } = await findUserByID(res.locals.session)
-  res.json({ user: { username, id } })
+  const { username, id, settings } = await findUserByID(res.locals.session)
+  res.json({ user: { username, id, settings } })
 })
 
 app.post('/update-settings', withAuth, async (req, res) => {
@@ -134,7 +135,7 @@ app.post('/update-settings', withAuth, async (req, res) => {
 app.post('/auth/signup', async (req, res) => {
   const user = await createUser(req.body) // TODO custom errors
   await setLoginSession(req, res, user.id)
-  res.json({ user: { username: user.username, id: user.id } })
+  res.json({ user: { username: user.username, id: user.id, settings: {} } })
 })
 
 app.post('/auth/logout', async (req, res) => {
