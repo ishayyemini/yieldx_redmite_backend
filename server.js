@@ -15,7 +15,7 @@ const {
   refreshLoginSession,
 } = require('./auth/session')
 const setupAuth = require('./auth/setup_auth')
-const setupClient = require('./mqtt/mqtt')
+const { setupClient, adminUsers } = require('./mqtt/mqtt')
 
 const app = express()
 expressWs(app)
@@ -125,6 +125,8 @@ app.post('/user', withAuth, async (req, res) => {
 })
 
 app.post('/update-settings', withAuth, async (req, res) => {
+  const { username } = await findUserByID(res.locals.session)
+  if (!adminUsers.includes(username)) res.sendStatus(401)
   if (req.body.settings)
     await updateSettings(res.locals.session, req.body.settings).then(
       (newSettings) => res.json({ settings: newSettings })

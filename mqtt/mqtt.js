@@ -1,6 +1,7 @@
 const mqtt = require('mqtt')
 
 const adminUsers = ['ishay2', 'lior', 'amit']
+
 const setupClient = (ws, user) => {
   let store = {}
   const url = user.settings?.mqtt || 'mqtts://broker.hivemq.com:8883'
@@ -63,4 +64,4 @@ const parseMessage = (topic, payload) => {
   return data
 }
 
-module.exports = setupClient
+module.exports = { setupClient, adminUsers }
