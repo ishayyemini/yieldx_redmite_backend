@@ -8,22 +8,16 @@ const setupClient = (ws, user) => {
 
   const client = mqtt.connect(url, { rejectUnauthorized: false })
   client.on('connect', () => {
-    client.subscribe(['YIELDX/STAT/RM/#', 'sensdata/#'])
+    client.subscribe(['YIELDX/STAT/RM/#', 'YIELDX/CONF/RM/#'])
     client.on('message', (topic, payload) => {
-      const { type, ...data } = parseMessage(topic, payload)
+      const data = parseMessage(topic, payload)
+      store = { ...store, [data.id]: { ...(store[data.id] ?? {}), ...data } }
       if (
-        type === 'STATUS' ||
-        (type === 'DATA' && (store[data.id]?.lastSens ?? 0) < data.lastSens)
-      ) {
-        store = {
-          ...store,
-          [data.id]: { ...(store[data.id] ?? {}), ...data },
-        }
-        if (
-          [...adminUsers, store[data.id].customer ?? ''].includes(user.username)
-        )
-          ws.send(JSON.stringify(store[data.id]))
-      }
+        [...adminUsers, store[data.id].customer].includes(user.username) &&
+        store[data.id].status &&
+        store[data.id].conf
+      )
+        ws.send(JSON.stringify(store[data.id]))
     })
   })
   client.on('error', (error) => {
@@ -38,25 +32,44 @@ const parseMessage = (topic, payload) => {
     const parsed = JSON.parse(payload.toString())
     if (topic.startsWith('YIELDX/STAT/RM/'))
       data = {
-        type: 'STATUS',
         id: topic.split('/')[3],
-        start: parsed.STRT ? new Date(parsed.STRT * 1000) : 0,
-        end: parsed.END ? new Date(parsed.END * 1000) : 0,
-        detection: parsed.DETCT ? new Date(parsed.DETCT * 1000) : 0,
-        trained: parsed.TRND ? new Date(parsed.TRND * 1000) : 0,
-        battery: parsed.BSTAT === 'Low' ? 'Low' : 'Ok',
-        lastUpdated: new Date(parsed.TS * 1000),
+        status: {
+          start: parsed.STRT * 1000 || 0,
+          end: parsed.END * 1000 || 0,
+          detection: parsed.DETCT * 1000 || 0,
+          trained: parsed.TRND * 1000 || 0,
+          battery: parsed.BSTAT === 'Low' ? 'Low' : 'Ok',
+        },
+        lastUpdated: parsed.TS * 1000 || 0,
       }
-    if (topic.startsWith('sensdata/'))
+    if (topic.startsWith('YIELDX/CONF/RM/CURRENT/'))
       data = {
-        type: 'DATA',
-        id: topic.split('/')[1],
-        lastSens: new Date(topic.split('/')[2]),
-        location: parsed.Location,
-        house: parsed.House,
-        inHouseLoc: parsed.InHouseLoc,
-        customer: parsed.Customer,
-        contact: parsed.Contact,
+        id: topic.split('/')[4],
+        location: parsed.Location ?? '',
+        house: parsed.House ?? '',
+        inHouseLoc: parsed.InHouseLoc ?? '',
+        customer: parsed.Customer ?? '',
+        contact: parsed.Contact ?? '',
+        conf: {
+          training: {
+            preOpen: parsed.PreOpen ?? 0,
+            ventDur: parsed.ventDur ?? 1,
+            on1: parsed.On_1 ?? 0,
+            sleep1: parsed.Sleep_1 ?? 0,
+            train: parsed.Train ?? 0,
+          },
+          daily: {
+            open1: parsed.Open_1 ?? '9:46',
+            close1: parsed.Close_1 ?? '9:48',
+          },
+          detection: {
+            startDet: parsed.StartDet ?? '9:50',
+            vent2: parsed.vent2 ?? 0,
+            on2: parsed.On_2 ?? 1,
+            sleep2: parsed.Sleep_2 ?? 1,
+            detect: parsed.Detect ?? 1,
+          },
+        },
       }
   } catch {
     console.error('Cannot parse mqtt message')
