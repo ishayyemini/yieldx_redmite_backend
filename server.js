@@ -172,8 +172,8 @@ app.use((err, req, res, next) => {
 const config = {
   user: 'sa',
   password: 'Yieldxbiz2021',
-  server: 'localhost',
-  database: 'ishay',
+  server: process.env.NODE_ENV === 'dev' ? '3.127.195.30' : 'localhost',
+  database: process.env.NODE_ENV === 'dev' ? 'ishay' : 'yx_rm',
   options: { encrypt: false },
 }
 sql.connect(config).then(async () => {
