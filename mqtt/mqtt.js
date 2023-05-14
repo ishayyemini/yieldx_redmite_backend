@@ -77,4 +77,42 @@ const parseMessage = (topic, payload) => {
   return data
 }
 
-module.exports = { setupClient, adminUsers }
+const pushConfUpdate = async (conf, user) => {
+  return new Promise((resolve, reject) => {
+    const url = user.settings?.mqtt || 'mqtts://broker.hivemq.com:8883'
+    const data = JSON.stringify({
+      Location: conf.location,
+      House: conf.house,
+      InHouseLoc: conf.inHouseLoc,
+      Customer: conf.customer,
+      Contact: conf.contact,
+      PreOpen: conf.preOpen,
+      ventDur: conf.ventDur,
+      On_1: conf.on1,
+      Sleep_1: conf.sleep1,
+      Train: conf.train,
+      Open_1: conf.open1,
+      Close_1: conf.close1,
+      StartDet: conf.startDet,
+      vent2: conf.vent2,
+      On_2: conf.on2,
+      Sleep_2: conf.sleep2,
+      Detect: conf.detect,
+    })
+    const client = mqtt.connect(url, { rejectUnauthorized: false })
+
+    client.on('connect', () => {
+      client.publish(`YIELDX/CONF/RM/NEW/${conf.id}`, data, (error) => {
+        client.end()
+        if (error) reject('MQTT error')
+        else resolve()
+      })
+    })
+    client.on('error', (error) => {
+      console.log(error)
+      reject('MQTT error')
+    })
+  })
+}
+
+module.exports = { setupClient, adminUsers, pushConfUpdate }

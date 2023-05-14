@@ -15,7 +15,7 @@ const {
   refreshLoginSession,
 } = require('./auth/session')
 const setupAuth = require('./auth/setup_auth')
-const { setupClient, adminUsers } = require('./mqtt/mqtt')
+const { setupClient, adminUsers, pushConfUpdate } = require('./mqtt/mqtt')
 
 const app = express()
 expressWs(app)
@@ -122,7 +122,7 @@ app.post('/auth/refresh', async (req, res) => {
     if (err.message === 'Session expired') res.sendStatus(401)
     else throw err
   })
-  res.json({ token: accessToken })
+  if (accessToken) res.json({ token: accessToken })
 })
 
 // Gets user information if authenticated
@@ -136,11 +136,17 @@ app.post('/user', withAuth, async (req, res) => {
 app.post('/update-settings', withAuth, async (req, res) => {
   const { username } = await findUserByID(res.locals.session)
   if (!adminUsers.includes(username)) res.sendStatus(401)
-  if (req.body.settings)
+  if (!req.body.settings) res.sendStatus(400)
+  else
     await updateSettings(res.locals.session, req.body.settings).then(
       (newSettings) => res.json({ settings: newSettings })
     )
-  res.sendStatus(400)
+})
+
+app.post('/update-device-conf', withAuth, async (req, res) => {
+  const user = await findUserByID(res.locals.session)
+  await pushConfUpdate(req.body, user)
+  res.sendStatus(200)
 })
 
 app.post('/auth/signup', async (req, res) => {
