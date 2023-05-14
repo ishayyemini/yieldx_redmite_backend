@@ -59,11 +59,11 @@ const parseMessage = (topic, payload) => {
             train: parsed.Train ?? 0,
           },
           daily: {
-            open1: parsed.Open_1 ?? '9:46',
-            close1: parsed.Close_1 ?? '9:48',
+            open1: parsed.Open_1?.padStart(5, '0') ?? '09:46',
+            close1: parsed.Close_1?.padStart(5, '0') ?? '09:48',
           },
           detection: {
-            startDet: parsed.StartDet ?? '9:50',
+            startDet: parsed.StartDet?.padStart(5, '0') ?? '09:50',
             vent2: parsed.vent2 ?? 0,
             on2: parsed.On_2 ?? 1,
             sleep2: parsed.Sleep_2 ?? 1,
