@@ -23,11 +23,10 @@ expressWs(app)
 app.use(
   cors({
     credentials: true,
-    origin: [
-      'https://yieldx-biosec.com',
-      'https://www.yieldx-biosec.com',
-      'http://localhost:3000',
-    ],
+    origin:
+      process.env.NODE_ENV === 'dev'
+        ? true
+        : ['https://yieldx-biosec.com', 'https://www.yieldx-biosec.com'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 )

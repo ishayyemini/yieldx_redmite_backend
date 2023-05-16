@@ -10,10 +10,9 @@ const setTokenCookie = (req, res, refreshToken) => {
     maxAge: REFRESH_MAX_AGE,
     expires: new Date(Date.now() + REFRESH_MAX_AGE * 1000),
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV !== 'dev',
     path: '/auth',
-    sameSite:
-      req.headers.origin === 'http://localhost:3000' ? 'None' : 'Strict',
+    sameSite: 'Strict',
   })
 
   res.setHeader('Set-Cookie', refreshCookie)
@@ -22,9 +21,9 @@ const setTokenCookie = (req, res, refreshToken) => {
 const removeTokenCookie = (res) => {
   const refreshCookie = serialize(REFRESH_TOKEN_NAME, '', {
     maxAge: -1,
-    secure: true,
+    secure: process.env.NODE_ENV !== 'dev',
     path: '/auth',
-    sameSite: 'None',
+    sameSite: 'Strict',
   })
 
   res.setHeader('Set-Cookie', refreshCookie)
