@@ -39,6 +39,7 @@ const parseMessage = (topic, payload) => {
           detection: parsed.DETCT * 1000 || 0,
           trained: parsed.TRND * 1000 || 0,
           battery: parsed.BSTAT === 'Low' ? 'Low' : 'Ok',
+          mode: parsed.MODE || '',
         },
         lastUpdated: parsed.TS * 1000 || 0,
       }
