@@ -102,11 +102,16 @@ const pushConfUpdate = async (conf, user) => {
     const client = mqtt.connect(url, { rejectUnauthorized: false })
 
     client.on('connect', () => {
-      client.publish(`YIELDX/CONF/RM/NEW/${conf.id}`, data, (error) => {
-        client.end()
-        if (error) reject('MQTT error')
-        else resolve()
-      })
+      client.publish(
+        `YIELDX/CONF/RM/NEW/${conf.id}`,
+        data,
+        { retain: true },
+        (error) => {
+          client.end()
+          if (error) reject('MQTT error')
+          else resolve()
+        }
+      )
     })
     client.on('error', (error) => {
       console.log(error)
