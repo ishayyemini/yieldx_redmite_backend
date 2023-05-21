@@ -15,7 +15,12 @@ const {
   refreshLoginSession,
 } = require('./auth/session')
 const setupAuth = require('./auth/setup_auth')
-const { setupClient, adminUsers, pushConfUpdate } = require('./mqtt/mqtt')
+const {
+  setupClient,
+  adminUsers,
+  pushConfUpdate,
+  logMqtt,
+} = require('./mqtt/mqtt')
 
 const app = express()
 expressWs(app)
@@ -183,6 +188,7 @@ const config = {
 }
 sql.connect(config).then(async () => {
   await setupAuth()
+  await logMqtt()
   app.listen(process.env.PORT || 4000, () => {
     console.log('Server Running on PORT', process.env.PORT || 4000)
   })

@@ -1,10 +1,18 @@
 const mqtt = require('mqtt')
+const moment = require('moment')
 
 const adminUsers = ['ishay2', 'lior', 'amit']
 
+const mqttServers = [
+  'mqtts://broker.hivemq.com:8883',
+  'mqtts://3.64.31.133:8884',
+]
+
 const setupClient = (ws, user) => {
   let store = {}
-  const url = user.settings?.mqtt || 'mqtts://broker.hivemq.com:8883'
+  const url = mqttServers.includes(user.settings?.mqtt)
+    ? user.settings?.mqtt
+    : mqttServers[0]
 
   const client = mqtt.connect(url, { rejectUnauthorized: false })
   client.on('connect', () => {
@@ -121,4 +129,72 @@ const pushConfUpdate = async (conf, user) => {
   })
 }
 
-module.exports = { setupClient, adminUsers, pushConfUpdate }
+const logMqtt = async () => {
+  mqttServers.forEach((url) => {
+    let store = {}
+    const client = mqtt.connect(url, { rejectUnauthorized: false })
+    client.on('connect', () => {
+      client.subscribe(['YIELDX/STAT/RM/#', 'YIELDX/CONF/RM/#'])
+      client.on('message', (topic, payload) => {
+        const data = parseMessage(topic, payload)
+        store = { ...store, [data.id]: { ...(store[data.id] ?? {}), ...data } }
+        if (store[data.id].status && store[data.id].conf) {
+          const device = store[data.id]
+          console.log(url, {
+            deviceID: device.id,
+            timestamp: new Date(device.lastUpdated),
+            mode: device.status.mode,
+            expectedUpdateAt: calcExpectedTime(device),
+          })
+        }
+      })
+    })
+    client.on('error', (error) => {
+      console.log(error)
+    })
+  })
+}
+
+const calcExpectedTime = (device) => {
+  const time = moment(device.lastUpdated)
+
+  const parseHour = (s) => {
+    const [hour, min] = s.split(':')
+    const oldTime = time.clone()
+    time.hour(+hour).minute(+min).second(0)
+    if (oldTime.isAfter(time)) time.add(1, 'day')
+  }
+
+  switch (device.status.mode) {
+    case 'PreOpen Lid':
+      time.add(device.conf.training.preOpen, 'minutes')
+      break
+    case 'Training':
+      time.add(
+        device.conf.training.on1 + device.conf.training.sleep1,
+        'minutes'
+      )
+      break
+    case 'Done Training':
+    case 'Lid Closed Daily-Cycle Done':
+      parseHour(device.conf.daily.open1)
+      break
+    case 'Lid Opened Idling':
+      parseHour(device.conf.daily.close1)
+      break
+    case 'Lid Closed Idling':
+      parseHour(device.conf.detection.startDet)
+      break
+    case 'Inspecting':
+    case 'Report Inspection':
+      time.add(
+        device.conf.detection.on2 + device.conf.detection.sleep2,
+        'minutes'
+      )
+      break
+  }
+
+  return time.toDate()
+}
+
+module.exports = { setupClient, adminUsers, pushConfUpdate, logMqtt }

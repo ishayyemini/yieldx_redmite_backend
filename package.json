@@ -26,12 +26,14 @@
     "express-ws": "^5.0.2",
     "got": "^11.8.6",
     "jsonwebtoken": "^9.0.0",
+    "moment": "^2.29.4",
     "mqtt": "^4.3.7",
     "mssql": "^9.1.1",
     "passport": "^0.6.0",
     "passport-local": "^1.0.0",
     "statuses": "^2.0.1",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "web-push": "^3.6.1"
   },
   "devDependencies": {
     "prettier": "^2.8.7"
