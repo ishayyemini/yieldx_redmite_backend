@@ -12,16 +12,16 @@ const createUser = async ({ username, password }) => {
     createdAt: new Date(),
   }
   await new sql.Request()
-    .input('id', sql.TYPES.UniqueIdentifier, user.id)
-    .input('username', sql.TYPES.NVarChar(50), user.username)
     .input('hashedPassword', sql.TYPES.VarBinary(sql.MAX), user.hashedPassword)
     .input('salt', sql.TYPES.VarBinary(sql.MAX), user.salt)
-    .input('createdAt', sql.TYPES.DateTime2(3), user.createdAt)
     .query(
       `
-  INSERT INTO RedMiteUsers (id, username, hashedPassword, salt, createdAt)
-  VALUES (@id, @username, @hashedPassword, @salt, @createdAt)
-  `
+          INSERT INTO RedMiteUsers (id, username, hashedPassword, salt,
+                                    createdAt)
+          VALUES ('${user.id}', '${user.username}',
+                  ${'@hashedPassword' + ', ' + '@salt'},
+                  '${user.createdAt.toISOString()}')
+      `
     )
 
   return user
@@ -69,23 +69,24 @@ const updateSettings = async ({ userID }, settings) => {
     .then((res) => JSON.parse(res?.recordset?.[0]?.settings || '{}'))
 }
 
-const createSession = async ({ session, token, userID, createdAt, maxAge }) => {
-  await new sql.Request()
-    .input('session', sql.TYPES.UniqueIdentifier, session)
-    .input('token', sql.TYPES.UniqueIdentifier, token)
-    .input('userID', sql.TYPES.NVarChar(50), userID)
-    .input('createdAt', sql.TYPES.DateTime2(3), new Date(createdAt))
-    .input(
-      'validUntil',
-      sql.TYPES.DateTime2(3),
-      new Date(createdAt + 1000 * maxAge)
-    )
-    .query(
+const createSession = async ({
+  session,
+  token,
+  userID,
+  createdAt,
+  maxAge,
+  subscription,
+}) => {
+  await new sql.Request().query(
+    `
+          INSERT INTO Sessions (session, token, userID, createdAt, validUntil, 
+                                subscription)
+          VALUES ('${session}', '${token}', '${userID}', 
+                  '${new Date(createdAt).toISOString()}', 
+                  '${new Date(createdAt + 1000 * maxAge).toISOString()}', 
+                  '${subscription}')
       `
-  INSERT INTO Sessions (session, token, userID, createdAt, validUntil)
-  VALUES (@session, @token, @userID, @createdAt, @validUntil)
-  `
-    )
+  )
 }
 
 const deleteSessions = (session) => {

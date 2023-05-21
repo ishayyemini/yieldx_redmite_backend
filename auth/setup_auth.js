@@ -19,7 +19,8 @@ IF object_id('Sessions') is null
     userID UNIQUEIDENTIFIER not null, 
     createdAt datetime2(3) not null,
     validUntil datetime2(3) not null,
-    invalid bit 
+    invalid bit,
+    subscription NVARCHAR(MAX)
   )
 `)
   await new sql.Request().query(`

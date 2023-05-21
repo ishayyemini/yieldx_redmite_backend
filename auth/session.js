@@ -25,9 +25,16 @@ const setLoginSession = async (req, res, userID, prevSession) => {
     expiresIn: ACCESS_MAX_AGE,
   })
 
+  const isValidSub =
+    req.body.subscription?.endpoint && req.body.subscription?.keys
+
   const refreshObj = { session, token, createdAt, maxAge: REFRESH_MAX_AGE }
   const refreshToken = await Iron.seal(refreshObj, TOKEN_SECRET, Iron.defaults)
-  await createSession({ ...refreshObj, userID })
+  await createSession({
+    ...refreshObj,
+    subscription: isValidSub ? JSON.stringify(req.body.subscription) : null,
+    userID,
+  })
   setTokenCookie(req, res, refreshToken)
 
   return accessToken
