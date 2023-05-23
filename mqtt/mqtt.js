@@ -152,9 +152,7 @@ const logMqtt = () => {
             server: url,
             timestamp: new Date(device.lastUpdated).toISOString(),
             mode: device.status.mode,
-            userID: await findUser({ username: device.customer })
-              .then((res) => res.id)
-              .catch(() => null),
+            customer: device.customer,
             expectedUpdateAt: calcExpectedTime(device),
           })
         }
