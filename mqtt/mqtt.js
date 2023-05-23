@@ -1,7 +1,11 @@
 const mqtt = require('mqtt')
 const moment = require('moment')
 
-const { upsertMqttDevice } = require('../auth/db_user')
+const {
+  upsertMqttDevice,
+  getMqttDevices,
+  findUser,
+} = require('../auth/db_user')
 
 const adminUsers = ['ishay2', 'lior', 'amit']
 
@@ -137,16 +141,20 @@ const logMqtt = () => {
     const client = mqtt.connect(url, { rejectUnauthorized: false })
     client.on('connect', () => {
       client.subscribe(['YIELDX/STAT/RM/#', 'YIELDX/CONF/RM/#'])
-      client.on('message', (topic, payload) => {
+      client.on('message', async (topic, payload) => {
         const data = parseMessage(topic, payload)
         store = { ...store, [data.id]: { ...(store[data.id] ?? {}), ...data } }
         if (store[data.id].status && store[data.id].conf) {
           const device = store[data.id]
+
           upsertMqttDevice({
             deviceID: device.id,
             server: url,
             timestamp: new Date(device.lastUpdated).toISOString(),
             mode: device.status.mode,
+            userID: await findUser({ username: device.customer })
+              .then((res) => res.id)
+              .catch(() => null),
             expectedUpdateAt: calcExpectedTime(device),
           })
         }
@@ -200,4 +208,37 @@ const calcExpectedTime = (device) => {
   return time.toISOString()
 }
 
-module.exports = { setupClient, adminUsers, pushConfUpdate, logMqtt }
+const listenToAlerts = () => {
+  let lastPolled = '',
+    devices = {}
+
+  const pollDB = async () => {
+    const newDevices = await getMqttDevices(lastPolled)
+
+    newDevices.forEach((device) => {
+      const id = `${device.deviceID}|${device.server}`
+      const minutes = moment(device.expectedUpdateAt).diff(moment(), 'minutes')
+      if (minutes > 0)
+        device.notify = setTimeout(() => {
+          sendPushNotification(devices[id])
+        }, (minutes + 10) * 60 * 1000)
+      devices[id] = device
+    })
+
+    lastPolled = new Date().toISOString()
+  }
+
+  setInterval(async () => {
+    await pollDB()
+  }, 10 * 60 * 1000)
+}
+
+const sendPushNotification = async () => {}
+
+module.exports = {
+  setupClient,
+  adminUsers,
+  pushConfUpdate,
+  logMqtt,
+  listenToAlerts,
+}

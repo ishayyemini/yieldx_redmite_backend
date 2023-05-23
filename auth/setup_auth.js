@@ -18,6 +18,7 @@ IF object_id('MqttStatus') is null
     server NVARCHAR(255) NOT NULL,
     timestamp DATETIME2(3) NOT NULL,
     mode NVARCHAR(255) NOT NULL,
+    userID UNIQUEIDENTIFIER,
     expectedUpdateAt DATETIME2(3) NOT NULL,
     PRIMARY KEY (deviceID, server),
     startTime DATETIME2(3) GENERATED ALWAYS AS ROW START HIDDEN NOT NULL,

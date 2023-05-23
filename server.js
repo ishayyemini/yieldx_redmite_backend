@@ -20,6 +20,7 @@ const {
   adminUsers,
   pushConfUpdate,
   logMqtt,
+  listenToAlerts,
 } = require('./mqtt/mqtt')
 
 const app = express()
@@ -189,6 +190,7 @@ const config = {
 sql.connect(config).then(async () => {
   await setupAuth()
   logMqtt()
+  listenToAlerts()
   app.listen(process.env.PORT || 4000, () => {
     console.log('Server Running on PORT', process.env.PORT || 4000)
   })

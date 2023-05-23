@@ -112,25 +112,43 @@ const findAndInvalidateSession = ({ session, token }) => {
 }
 
 const upsertMqttDevice = (device) => {
-  const { deviceID, server, timestamp, mode, expectedUpdateAt } = device
-  return new sql.Request().query(
-    `
+  const { deviceID, server, timestamp, mode, userID, expectedUpdateAt } = device
+  return new sql.Request()
+    .input('userID', sql.TYPES.UniqueIdentifier, userID)
+    .query(
+      `
   MERGE MqttStatus
   USING ( 
-    VALUES ('${deviceID}', '${server}', '${timestamp}', '${mode}',
+    VALUES ('${deviceID}', '${server}', '${timestamp}', '${mode}', 
+            ${'' + '@userID'},
             '${expectedUpdateAt}')
-  ) AS foo (deviceID, server, timestamp, mode, expectedUpdateAt) 
+  ) AS foo (deviceID, server, timestamp, mode, userID, expectedUpdateAt) 
   ON MqttStatus.deviceID = foo.deviceID and MqttStatus.server = foo.server 
   WHEN MATCHED and MqttStatus.timestamp != foo.timestamp THEN
-    UPDATE SET timestamp = foo.timestamp, mode = foo.mode, 
+    UPDATE SET timestamp = foo.timestamp, mode = foo.mode, userID = foo.userID,
                expectedUpdateAt = foo.expectedUpdateAt
   WHEN NOT MATCHED THEN
-     INSERT (deviceID, server, timestamp, mode, expectedUpdateAt)
-     VALUES (foo.deviceID, foo.server, foo.timestamp, foo.mode, 
+     INSERT (deviceID, server, timestamp, mode, userID, expectedUpdateAt)
+     VALUES (foo.deviceID, foo.server, foo.timestamp, foo.mode, foo.userID,
              foo.expectedUpdateAt)
   ;
 `
-  )
+    )
+}
+
+const getMqttDevices = (from) => {
+  return new sql.Request()
+    .query(
+      `
+    SELECT * FROM MqttStatus
+    WHERE timestamp >= '${from}'
+  `
+    )
+    .then((res) => res?.recordset || [])
+    .catch((err) => {
+      console.log(err)
+      return []
+    })
 }
 
 module.exports = {
@@ -142,4 +160,5 @@ module.exports = {
   deleteSessions,
   updateSettings,
   upsertMqttDevice,
+  getMqttDevices,
 }
