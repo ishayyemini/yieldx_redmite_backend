@@ -1,11 +1,17 @@
 const mqtt = require('mqtt')
 const moment = require('moment')
+const webpush = require('web-push')
 
 const {
   upsertMqttDevice,
   getMqttDevices,
-  findUser,
+  getPushSubscriptions,
 } = require('../auth/db_user')
+const {
+  WEBPUSH_MAIL,
+  WEBPUSH_PUBLIC_KEY,
+  WEBPUSH_PRIVATE_KEY,
+} = require('../tokens.json')
 
 const adminUsers = ['ishay2', 'lior', 'amit']
 
@@ -207,6 +213,8 @@ const calcExpectedTime = (device) => {
 }
 
 const listenToAlerts = () => {
+  webpush.setVapidDetails(WEBPUSH_MAIL, WEBPUSH_PUBLIC_KEY, WEBPUSH_PRIVATE_KEY)
+
   let lastPolled = '',
     devices = {}
 
@@ -231,7 +239,22 @@ const listenToAlerts = () => {
   }, 10 * 60 * 1000)
 }
 
-const sendPushNotification = async () => {}
+const sendPushNotification = async (device) => {
+  const subs = await getPushSubscriptions([...adminUsers, device.customer])
+  console.log(subs)
+  subs.forEach((sub) => {
+    webpush.sendNotification(
+      sub,
+      JSON.stringify({
+        title: 'RedMite - Device Error Alert',
+        description: `Device ${device.deviceID} was expected
+        to update at ${moment(device.expectedUpdateAt).toISOString()}.
+        Current status is ${device.mode} since
+        ${moment(device.timestamp).toISOString()}`,
+      })
+    )
+  })
+}
 
 module.exports = {
   setupClient,
