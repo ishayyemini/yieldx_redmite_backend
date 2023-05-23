@@ -188,7 +188,7 @@ const config = {
 }
 sql.connect(config).then(async () => {
   await setupAuth()
-  await logMqtt()
+  logMqtt()
   app.listen(process.env.PORT || 4000, () => {
     console.log('Server Running on PORT', process.env.PORT || 4000)
   })

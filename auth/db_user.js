@@ -111,6 +111,28 @@ const findAndInvalidateSession = ({ session, token }) => {
     .then((res) => res?.recordset?.[0])
 }
 
+const upsertMqttDevice = (device) => {
+  const { deviceID, server, timestamp, mode, expectedUpdateAt } = device
+  return new sql.Request().query(
+    `
+  MERGE MqttStatus
+  USING ( 
+    VALUES ('${deviceID}', '${server}', '${timestamp}', '${mode}',
+            '${expectedUpdateAt}')
+  ) AS foo (deviceID, server, timestamp, mode, expectedUpdateAt) 
+  ON MqttStatus.deviceID = foo.deviceID and MqttStatus.server = foo.server 
+  WHEN MATCHED and MqttStatus.timestamp != foo.timestamp THEN
+    UPDATE SET timestamp = foo.timestamp, mode = foo.mode, 
+               expectedUpdateAt = foo.expectedUpdateAt
+  WHEN NOT MATCHED THEN
+     INSERT (deviceID, server, timestamp, mode, expectedUpdateAt)
+     VALUES (foo.deviceID, foo.server, foo.timestamp, foo.mode, 
+             foo.expectedUpdateAt)
+  ;
+`
+  )
+}
+
 module.exports = {
   createUser,
   findUser,
@@ -119,4 +141,5 @@ module.exports = {
   findAndInvalidateSession,
   deleteSessions,
   updateSettings,
+  upsertMqttDevice,
 }

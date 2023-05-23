@@ -1,6 +1,8 @@
 const mqtt = require('mqtt')
 const moment = require('moment')
 
+const { upsertMqttDevice } = require('../auth/db_user')
+
 const adminUsers = ['ishay2', 'lior', 'amit']
 
 const mqttServers = [
@@ -129,7 +131,7 @@ const pushConfUpdate = async (conf, user) => {
   })
 }
 
-const logMqtt = async () => {
+const logMqtt = () => {
   mqttServers.forEach((url) => {
     let store = {}
     const client = mqtt.connect(url, { rejectUnauthorized: false })
@@ -140,9 +142,10 @@ const logMqtt = async () => {
         store = { ...store, [data.id]: { ...(store[data.id] ?? {}), ...data } }
         if (store[data.id].status && store[data.id].conf) {
           const device = store[data.id]
-          console.log(url, {
+          upsertMqttDevice({
             deviceID: device.id,
-            timestamp: new Date(device.lastUpdated),
+            server: url,
+            timestamp: new Date(device.lastUpdated).toISOString(),
             mode: device.status.mode,
             expectedUpdateAt: calcExpectedTime(device),
           })
@@ -194,7 +197,7 @@ const calcExpectedTime = (device) => {
       break
   }
 
-  return time.toDate()
+  return time.toISOString()
 }
 
 module.exports = { setupClient, adminUsers, pushConfUpdate, logMqtt }

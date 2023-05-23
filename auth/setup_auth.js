@@ -12,6 +12,20 @@ IF object_id('RedMiteUsers') is null
     settings NVARCHAR(MAX)
   )
 
+IF object_id('MqttStatus') is null
+  CREATE TABLE MqttStatus(
+    deviceID NVARCHAR(12) NOT NULL,
+    server NVARCHAR(255) NOT NULL,
+    timestamp DATETIME2(3) NOT NULL,
+    mode NVARCHAR(255) NOT NULL,
+    expectedUpdateAt DATETIME2(3) NOT NULL,
+    PRIMARY KEY (deviceID, server),
+    startTime DATETIME2(3) GENERATED ALWAYS AS ROW START HIDDEN NOT NULL,
+    endTime DATETIME2(3) GENERATED ALWAYS AS ROW END HIDDEN NOT NULL,
+    PERIOD FOR SYSTEM_TIME (startTime, endTime)
+  )
+  WITH (SYSTEM_VERSIONING = ON(HISTORY_TABLE = dbo.MqttHistory))
+
 IF object_id('Sessions') is null
   CREATE TABLE Sessions ( 
     session UNIQUEIDENTIFIER not null, 
