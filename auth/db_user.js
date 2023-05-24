@@ -84,7 +84,7 @@ const createSession = async ({
           VALUES ('${session}', '${token}', '${userID}', 
                   '${new Date(createdAt).toISOString()}', 
                   '${new Date(createdAt + 1000 * maxAge).toISOString()}', 
-                  '${subscription}')
+                  ${subscription ? `'${subscription}'` : 'null'})
       `
   )
 }
@@ -162,8 +162,9 @@ const getPushSubscriptions = (customers) => {
     )
     .then(
       (res) =>
-        res?.recordset?.map((row) => JSON.parse(row?.subscription ?? '{}')) ||
-        []
+        res?.recordset
+          ?.filter((row) => row?.subscription)
+          .map((row) => JSON.parse(row.subscription)) || []
     )
     .catch((err) => {
       console.log(err)

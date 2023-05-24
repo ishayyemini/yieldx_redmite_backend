@@ -20,19 +20,20 @@ const setLoginSession = async (req, res, userID, prevSession) => {
   const createdAt = Date.now()
   const session = prevSession || uuid()
   const token = uuid()
+  const isValidSub =
+    !!req.body.subscription?.endpoint && !!req.body.subscription?.keys
 
   const accessToken = jwt.sign({ userID }, TOKEN_SECRET, {
     expiresIn: ACCESS_MAX_AGE,
   })
 
-  const isValidSub =
-    req.body.subscription?.endpoint && req.body.subscription?.keys
-
   const refreshObj = { session, token, createdAt, maxAge: REFRESH_MAX_AGE }
   const refreshToken = await Iron.seal(refreshObj, TOKEN_SECRET, Iron.defaults)
   await createSession({
     ...refreshObj,
-    subscription: isValidSub ? JSON.stringify(req.body.subscription) : null,
+    ...(isValidSub
+      ? { subscription: JSON.stringify(req.body.subscription) }
+      : {}),
     userID,
   })
   setTokenCookie(req, res, refreshToken)
