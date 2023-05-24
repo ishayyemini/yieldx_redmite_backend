@@ -16,11 +16,10 @@ const {
 } = require('./auth/session')
 const setupAuth = require('./auth/setup_auth')
 const {
-  setupClient,
   adminUsers,
+  mqttServers,
   pushConfUpdate,
-  logMqtt,
-  listenToAlerts,
+  setupMqtt,
 } = require('./mqtt/mqtt')
 
 const app = express()
@@ -76,6 +75,20 @@ const withAuth = async (req, res, next) => {
   next()
 }
 
+const storeData = {}
+const store = {
+  get: (key) => storeData[key],
+  set: (key, data) => {
+    if (data.status && data.conf)
+      store.updateHooks.forEach((func) => func(data))
+    storeData[key] = data
+  },
+  getAll: () =>
+    Object.values(storeData).filter((item) => item.status && item.conf),
+  onUpdate: (func) => store.updateHooks.push(func),
+  updateHooks: [],
+}
+
 app.ws('/mqtt', (ws) => {
   let token, user
   ws.on('message', async (msg) => {
@@ -86,7 +99,19 @@ app.ws('/mqtt', (ws) => {
         .catch(() => ws.close(4004, 'Unauthorized'))
       if (user?.username) {
         ws.send('authorized')
-        setupClient(ws, user)
+        const sendIfCustomer = (item) => {
+          const server = mqttServers.includes(user.settings?.mqtt)
+            ? user.settings?.mqtt
+            : mqttServers[0]
+          const isCustomer = user.customer && item.customer === user.customer
+          if (
+            item.server === server &&
+            (adminUsers.includes(user.username) || isCustomer)
+          )
+            ws.send(JSON.stringify(item))
+        }
+        store.getAll().forEach(sendIfCustomer)
+        store.onUpdate(sendIfCustomer)
       }
     }
   })
@@ -189,8 +214,7 @@ const config = {
 }
 sql.connect(config).then(async () => {
   await setupAuth()
-  logMqtt()
-  listenToAlerts()
+  setupMqtt(store)
   app.listen(process.env.PORT || 4000, () => {
     console.log('Server Running on PORT', process.env.PORT || 4000)
   })

@@ -5,6 +5,7 @@ const setupAuth = async () => {
 IF object_id('RedMiteUsers') is null
   CREATE TABLE RedMiteUsers ( 
     id UNIQUEIDENTIFIER PRIMARY KEY, 
+    customer NVARCHAR(50),
     username NVARCHAR(50) UNIQUE not null, 
     hashedPassword varBinary(MAX) not null, 
     salt varBinary(MAX),

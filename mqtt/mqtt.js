@@ -20,32 +20,6 @@ const mqttServers = [
   'mqtts://3.64.31.133:8884',
 ]
 
-const setupClient = (ws, user) => {
-  let store = {}
-  const url = mqttServers.includes(user.settings?.mqtt)
-    ? user.settings?.mqtt
-    : mqttServers[0]
-
-  const client = mqtt.connect(url, { rejectUnauthorized: false })
-  client.on('connect', () => {
-    client.subscribe(['YIELDX/STAT/RM/#', 'YIELDX/CONF/RM/#'])
-    client.on('message', (topic, payload) => {
-      const data = parseMessage(topic, payload)
-      store = { ...store, [data.id]: { ...(store[data.id] ?? {}), ...data } }
-      if (
-        [...adminUsers, store[data.id].customer].includes(user.username) &&
-        store[data.id].status &&
-        store[data.id].conf
-      )
-        ws.send(JSON.stringify(store[data.id]))
-    })
-  })
-  client.on('error', (error) => {
-    console.log(error)
-    ws.close(4004, `MQTT error: ${error.message}`)
-  })
-}
-
 const parseMessage = (topic, payload) => {
   let data = {}
   try {
@@ -141,27 +115,29 @@ const pushConfUpdate = async (conf, user) => {
   })
 }
 
-const logMqtt = () => {
+const setupMqtt = (store) => {
   mqttServers.forEach((url) => {
-    let store = {}
     const client = mqtt.connect(url, { rejectUnauthorized: false })
     client.on('connect', () => {
       client.subscribe(['YIELDX/STAT/RM/#', 'YIELDX/CONF/RM/#'])
-      client.on('message', async (topic, payload) => {
+      client.on('message', (topic, payload) => {
         const data = parseMessage(topic, payload)
-        store = { ...store, [data.id]: { ...(store[data.id] ?? {}), ...data } }
-        if (store[data.id].status && store[data.id].conf) {
-          const device = store[data.id]
-
+        store.set(`${data.id}|${url}`, {
+          ...(store.get(`${data.id}|${url}`) ?? {}),
+          ...data,
+          server: url,
+        })
+        const device = store.get(`${data.id}|${url}`)
+        if (device.status && device.conf)
           upsertMqttDevice({
             deviceID: device.id,
             server: url,
             timestamp: new Date(device.lastUpdated).toISOString(),
             mode: device.status.mode,
             customer: device.customer,
-            expectedUpdateAt: calcExpectedTime(device),
+            expectedUpdateAt:
+              calcExpectedTime(device).afterNextUpdate.toISOString(),
           })
-        }
       })
     })
     client.on('error', (error) => {
@@ -261,7 +237,7 @@ const calcExpectedTime = (device) => {
       break
   }
 
-  return afterNextUpdate.toISOString()
+  return { nextUpdate, afterNextUpdate }
 }
 
 const listenToAlerts = () => {
@@ -309,9 +285,9 @@ const sendPushNotification = async (device) => {
 }
 
 module.exports = {
-  setupClient,
   adminUsers,
   pushConfUpdate,
-  logMqtt,
+  setupMqtt,
   listenToAlerts,
+  mqttServers,
 }

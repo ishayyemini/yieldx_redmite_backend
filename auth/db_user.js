@@ -157,7 +157,7 @@ const getPushSubscriptions = (customers) => {
     FROM Sessions
     JOIN RedMiteUsers RMU on Sessions.userID = RMU.id
     WHERE subscription is not null and COALESCE(invalid, 'false') != 'true' and
-          username in (${"'" + customers.join("', '") + "'"})
+          customer in (${"'" + customers.join("', '") + "'"})
   `
     )
     .then(
