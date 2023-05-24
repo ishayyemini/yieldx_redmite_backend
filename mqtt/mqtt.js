@@ -132,11 +132,10 @@ const setupMqtt = (store) => {
           upsertMqttDevice({
             deviceID: device.id,
             server: url,
-            timestamp: new Date(device.lastUpdated).toISOString(),
+            timestamp: moment(device.lastUpdated).toISOString(),
             mode: device.status.mode,
             customer: device.customer,
-            expectedUpdateAt:
-              calcExpectedTime(device).afterNextUpdate.toISOString(),
+            expectedUpdateAt: calcExpectedTime(device).nextUpdate.toISOString(),
           })
       })
     })
@@ -288,6 +287,6 @@ module.exports = {
   adminUsers,
   pushConfUpdate,
   setupMqtt,
-  listenToAlerts,
+  calcExpectedTime,
   mqttServers,
 }
