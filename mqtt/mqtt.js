@@ -171,45 +171,97 @@ const logMqtt = () => {
 }
 
 const calcExpectedTime = (device) => {
-  const time = moment(device.lastUpdated)
+  let nextUpdate = moment(device.lastUpdated)
+  let afterNextUpdate
 
   const parseHour = (s) => {
     const [hour, min] = s.split(':')
-    const oldTime = time.clone()
-    time.hour(+hour).minute(+min).second(0)
-    if (oldTime.isAfter(time)) time.add(1, 'day')
+    const deadline = nextUpdate.clone().hour(+hour).minute(+min).second(0)
+    if (nextUpdate.isSameOrAfter(deadline)) deadline.add(1, 'day')
+    return deadline
   }
 
   switch (device.status.mode) {
     case 'PreOpen Lid':
-      time.add(device.conf.training.preOpen, 'minutes')
+      nextUpdate.add(device.conf.training.preOpen, 'minutes')
+      afterNextUpdate = nextUpdate
+        .clone()
+        .add(device.conf.training.on1 + device.conf.training.sleep1, 'minutes')
       break
     case 'Training':
-      time.add(
-        device.conf.training.on1 + device.conf.training.sleep1,
+      const trainCycleLength =
+        device.conf.training.on1 + device.conf.training.sleep1
+      const totalTrainCycles = Math.ceil(
+        device.conf.training.train / trainCycleLength
+      )
+      const minutesSinceStart = moment(device.lastUpdated).diff(
+        device.status.start,
         'minutes'
       )
+      const currentTrainCycle =
+        Math.floor(minutesSinceStart / trainCycleLength) + 1
+
+      nextUpdate.add(trainCycleLength, 'minutes')
+      if (currentTrainCycle < totalTrainCycles)
+        afterNextUpdate = nextUpdate.clone().add(trainCycleLength, 'minutes')
+      else {
+        // This is calculated *after* 1 cycle!!!
+        afterNextUpdate = moment.min(
+          parseHour(device.conf.daily.open1),
+          parseHour(device.conf.daily.close1),
+          parseHour(device.conf.detection.startDet)
+        )
+      }
       break
     case 'Done Training':
     case 'Lid Closed Daily-Cycle Done':
-      parseHour(device.conf.daily.open1)
+      nextUpdate = moment.min(
+        parseHour(device.conf.daily.open1),
+        parseHour(device.conf.daily.close1),
+        parseHour(device.conf.detection.startDet)
+      )
+      // Minimum *after* the first minimum
+      afterNextUpdate = moment.min(
+        parseHour(device.conf.daily.open1),
+        parseHour(device.conf.daily.close1),
+        parseHour(device.conf.detection.startDet)
+      )
       break
     case 'Lid Opened Idling':
-      parseHour(device.conf.daily.close1)
+      nextUpdate = parseHour(device.conf.daily.close1)
+      afterNextUpdate = parseHour(device.conf.detection.startDet)
       break
     case 'Lid Closed Idling':
-      parseHour(device.conf.detection.startDet)
+      nextUpdate = parseHour(device.conf.detection.startDet)
+      afterNextUpdate = nextUpdate
+        .clone()
+        .add(
+          device.conf.detection.on2 + device.conf.detection.sleep2,
+          'minutes'
+        )
       break
     case 'Inspecting':
     case 'Report Inspection':
-      time.add(
-        device.conf.detection.on2 + device.conf.detection.sleep2,
+      const detectCycleLength =
+        device.conf.detection.on2 + device.conf.detection.sleep2
+      const totalDetectCycles = Math.ceil(
+        device.conf.detection.detect / detectCycleLength
+      )
+      const minutesSinceOpen = moment(device.lastUpdated).diff(
+        parseHour(device.conf.daily.open1),
         'minutes'
       )
+      const currentDetectCycle =
+        Math.floor(minutesSinceOpen / totalDetectCycles) + 1
+
+      nextUpdate.add(detectCycleLength, 'minutes')
+      if (currentDetectCycle < totalDetectCycles)
+        afterNextUpdate = nextUpdate.clone().add(detectCycleLength, 'minutes')
+      else afterNextUpdate = parseHour(device.conf.daily.open1)
       break
   }
 
-  return time.toISOString()
+  return afterNextUpdate.toISOString()
 }
 
 const listenToAlerts = () => {
