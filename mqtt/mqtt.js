@@ -1,5 +1,5 @@
 const mqtt = require('mqtt')
-const moment = require('moment')
+const moment = require('moment-timezone')
 const webpush = require('web-push')
 
 const {
@@ -45,6 +45,7 @@ const parseMessage = (topic, payload) => {
         inHouseLoc: parsed.InHouseLoc ?? '',
         customer: parsed.Customer ?? '',
         contact: parsed.Contact ?? '',
+        timezone: isNaN(parsed.TZ) ? 0 : Number(parsed.TZ),
         conf: {
           training: {
             preOpen: parsed.PreOpen ?? 0,
@@ -151,7 +152,11 @@ const calcExpectedTime = (device) => {
 
   const parseHour = (s) => {
     const [hour, min] = s.split(':')
-    const deadline = nextUpdate.clone().hour(+hour).minute(+min).second(0)
+    const deadline = moment(nextUpdate)
+      .tz(`Etc/GMT${(device.timezone >= 0 ? '' : '+') + -device.timezone}`)
+      .hour(+hour)
+      .minute(+min)
+      .second(0)
     if (nextUpdate.isSameOrAfter(deadline)) deadline.add(1, 'day')
     return deadline
   }
