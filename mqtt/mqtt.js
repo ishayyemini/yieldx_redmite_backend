@@ -227,7 +227,7 @@ const calcExpectedTime = (device) => {
       const detectCycleLength =
         device.conf.detection.on2 + device.conf.detection.sleep2
       const minutesSinceOpen = moment(device.lastUpdated).diff(
-        parseHour(device.conf.detection.open1, true),
+        parseHour(device.conf.detection.startDet, true),
         'minutes'
       )
       currentCycle = Math.floor(minutesSinceOpen / detectCycleLength) + 1
@@ -238,6 +238,8 @@ const calcExpectedTime = (device) => {
         afterNextUpdate = nextUpdate.clone().add(detectCycleLength, 'minutes')
       else afterNextUpdate = parseHour(device.conf.detection.open1)
       break
+    default:
+      afterNextUpdate = nextUpdate
   }
 
   return {
