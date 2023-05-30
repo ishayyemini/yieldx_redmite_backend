@@ -20,7 +20,6 @@ const {
   mqttServers,
   pushConfUpdate,
   setupMqtt,
-  calcExpectedTime,
 } = require('./mqtt/mqtt')
 
 const app = express()
@@ -108,16 +107,8 @@ app.ws('/mqtt', (ws) => {
           if (
             item.server === server &&
             (adminUsers.includes(user.username) || isCustomer)
-          ) {
-            const { nextUpdate, afterNextUpdate } = calcExpectedTime(item)
-            ws.send(
-              JSON.stringify({
-                ...item,
-                nextUpdate: nextUpdate.unix() * 1000,
-                afterNextUpdate: afterNextUpdate.unix() * 1000,
-              })
-            )
-          }
+          )
+            ws.send(JSON.stringify(item))
         }
         store.getAll().forEach(sendIfCustomer)
         store.onUpdate(sendIfCustomer)

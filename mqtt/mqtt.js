@@ -2,11 +2,7 @@ const mqtt = require('mqtt')
 const moment = require('moment-timezone')
 const webpush = require('web-push')
 
-const {
-  upsertMqttDevice,
-  getMqttDevices,
-  getPushSubscriptions,
-} = require('../auth/db_user')
+const { upsertMqttDevice, getPushSubscriptions } = require('../auth/db_user')
 const {
   WEBPUSH_MAIL,
   WEBPUSH_PUBLIC_KEY,
@@ -54,11 +50,9 @@ const parseMessage = (topic, payload) => {
             sleep1: parsed.Sleep_1 ?? 0,
             train: parsed.Train ?? 0,
           },
-          daily: {
+          detection: {
             open1: parsed.Open_1?.padStart(5, '0') ?? '09:46',
             close1: parsed.Close_1?.padStart(5, '0') ?? '09:48',
-          },
-          detection: {
             startDet: parsed.StartDet?.padStart(5, '0') ?? '09:50',
             vent2: parsed.vent2 ?? 0,
             on2: parsed.On_2 ?? 1,
@@ -123,21 +117,29 @@ const setupMqtt = (store) => {
       client.subscribe(['YIELDX/STAT/RM/#', 'YIELDX/CONF/RM/#'])
       client.on('message', (topic, payload) => {
         const data = parseMessage(topic, payload)
-        store.set(`${data.id}|${url}`, {
-          ...(store.get(`${data.id}|${url}`) ?? {}),
-          ...data,
-          server: url,
-        })
-        const device = store.get(`${data.id}|${url}`)
-        if (device.status && device.conf)
+        const device = { ...(store.get(`${data.id}|${url}`) ?? {}), ...data }
+
+        if (device.status && device.conf) {
+          const { cycles, updates } = calcExpectedTime(device)
+          device.nextUpdate = updates.nextUpdate.unix() * 1000
+          device.afterNextUpdate = updates.afterNextUpdate.unix() * 1000
+          device.server = url
+          device.status.currentCycle = cycles.currentCycle
+          device.status.totalCycles = cycles.totalCycles
+
           upsertMqttDevice({
             deviceID: device.id,
             server: url,
             timestamp: moment(device.lastUpdated).toISOString(),
-            mode: device.status.mode,
+            mode: cycles.currentCycle
+              ? `${device.status.mode}|${cycles.currentCycle}|${cycles.totalCycles}`
+              : device.status.mode,
             customer: device.customer,
-            expectedUpdateAt: calcExpectedTime(device).nextUpdate.toISOString(),
+            expectedUpdateAt: moment(device.nextUpdate).toISOString(),
           })
+        }
+
+        store.set(`${data.id}|${url}`, device)
       })
     })
     client.on('error', (error) => {
@@ -149,15 +151,18 @@ const setupMqtt = (store) => {
 const calcExpectedTime = (device) => {
   let nextUpdate = moment(device.lastUpdated)
   let afterNextUpdate
+  let currentCycle = 0
+  let totalCycles = 0
 
-  const parseHour = (s) => {
+  const parseHour = (s, ago) => {
     const [hour, min] = s.split(':')
     const deadline = moment(nextUpdate)
       .tz(`Etc/GMT${(device.timezone >= 0 ? '' : '+') + -device.timezone}`)
       .hour(+hour)
       .minute(+min)
       .second(0)
-    if (nextUpdate.isSameOrAfter(deadline)) deadline.add(1, 'day')
+    if (!ago && nextUpdate.isSameOrAfter(deadline)) deadline.add(1, 'day')
+    if (ago && nextUpdate.isSameOrBefore(deadline)) deadline.subtract(1, 'day')
     return deadline
   }
 
@@ -171,24 +176,21 @@ const calcExpectedTime = (device) => {
     case 'Training':
       const trainCycleLength =
         device.conf.training.on1 + device.conf.training.sleep1
-      const totalTrainCycles = Math.ceil(
-        device.conf.training.train / trainCycleLength
-      )
       const minutesSinceStart = moment(device.lastUpdated).diff(
         device.status.start,
         'minutes'
       )
-      const currentTrainCycle =
-        Math.floor(minutesSinceStart / trainCycleLength) + 1
+      currentCycle = Math.floor(minutesSinceStart / trainCycleLength) + 1
+      totalCycles = Math.ceil(device.conf.training.train / trainCycleLength)
 
       nextUpdate.add(trainCycleLength, 'minutes')
-      if (currentTrainCycle < totalTrainCycles)
+      if (currentCycle < totalCycles)
         afterNextUpdate = nextUpdate.clone().add(trainCycleLength, 'minutes')
       else {
         // This is calculated *after* 1 cycle!!!
         afterNextUpdate = moment.min(
-          parseHour(device.conf.daily.open1),
-          parseHour(device.conf.daily.close1),
+          parseHour(device.conf.detection.open1),
+          parseHour(device.conf.detection.close1),
           parseHour(device.conf.detection.startDet)
         )
       }
@@ -196,19 +198,19 @@ const calcExpectedTime = (device) => {
     case 'Done Training':
     case 'Lid Closed Daily-Cycle Done':
       nextUpdate = moment.min(
-        parseHour(device.conf.daily.open1),
-        parseHour(device.conf.daily.close1),
+        parseHour(device.conf.detection.open1),
+        parseHour(device.conf.detection.close1),
         parseHour(device.conf.detection.startDet)
       )
       // Minimum *after* the first minimum
       afterNextUpdate = moment.min(
-        parseHour(device.conf.daily.open1),
-        parseHour(device.conf.daily.close1),
+        parseHour(device.conf.detection.open1),
+        parseHour(device.conf.detection.close1),
         parseHour(device.conf.detection.startDet)
       )
       break
     case 'Lid Opened Idling':
-      nextUpdate = parseHour(device.conf.daily.close1)
+      nextUpdate = parseHour(device.conf.detection.close1)
       afterNextUpdate = parseHour(device.conf.detection.startDet)
       break
     case 'Lid Closed Idling':
@@ -224,24 +226,24 @@ const calcExpectedTime = (device) => {
     case 'Report Inspection':
       const detectCycleLength =
         device.conf.detection.on2 + device.conf.detection.sleep2
-      const totalDetectCycles = Math.ceil(
-        device.conf.detection.detect / detectCycleLength
-      )
       const minutesSinceOpen = moment(device.lastUpdated).diff(
-        parseHour(device.conf.daily.open1),
+        parseHour(device.conf.detection.open1, true),
         'minutes'
       )
-      const currentDetectCycle =
-        Math.floor(minutesSinceOpen / totalDetectCycles) + 1
+      currentCycle = Math.floor(minutesSinceOpen / detectCycleLength) + 1
+      totalCycles = Math.ceil(device.conf.detection.detect / detectCycleLength)
 
       nextUpdate.add(detectCycleLength, 'minutes')
-      if (currentDetectCycle < totalDetectCycles)
+      if (currentCycle < totalCycles)
         afterNextUpdate = nextUpdate.clone().add(detectCycleLength, 'minutes')
-      else afterNextUpdate = parseHour(device.conf.daily.open1)
+      else afterNextUpdate = parseHour(device.conf.detection.open1)
       break
   }
 
-  return { nextUpdate, afterNextUpdate }
+  return {
+    updates: { nextUpdate, afterNextUpdate },
+    cycles: { currentCycle, totalCycles },
+  }
 }
 
 const listenToAlerts = () => {
