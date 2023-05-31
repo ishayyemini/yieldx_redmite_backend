@@ -4,6 +4,7 @@ const cors = require('cors')
 const passport = require('passport')
 const status = require('statuses')
 const expressWs = require('express-ws')
+const got = require('got')
 
 const { authenticate, localStrategy } = require('./auth/login')
 const { createUser, findUserByID, updateSettings } = require('./auth/db_user')
@@ -72,7 +73,8 @@ const withAuth = async (req, res, next) => {
     console.log(e)
     res.sendStatus(401)
   })
-  next()
+  if (res.locals.session) next()
+  else next('Unauthorized')
 }
 
 const storeData = {}
@@ -195,6 +197,25 @@ app.post('/auth/signup', async (req, res) => {
 app.post('/auth/logout', async (req, res) => {
   await clearLoginSession(req, res)
   res.sendStatus(200)
+})
+
+app.get('/list-ota', withAuth, async (req, res) => {
+  const versions = await got
+    .get('http://3.127.195.30/RedMite/OTA/')
+    .text()
+    .then(
+      (r) =>
+        r
+          .match(/a href="\/RedMite\/OTA\/[^"]+.bin/gi)
+          ?.map((item) =>
+            item.replace(/a href="\/RedMite\/OTA\/|\.bin/gi, '')
+          ) || []
+    )
+    .catch((err) => {
+      console.log(err)
+      return []
+    })
+  res.json({ otaList: versions })
 })
 
 app.use((err, req, res, next) => {
