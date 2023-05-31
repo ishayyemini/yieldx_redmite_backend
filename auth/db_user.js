@@ -153,7 +153,7 @@ const getPushSubscriptions = (customers) => {
   return new sql.Request()
     .query(
       `
-    SELECT subscription
+    SELECT session, subscription
     FROM Sessions
     JOIN RedMiteUsers RMU on Sessions.userID = RMU.id
     WHERE subscription is not null and COALESCE(invalid, 'false') != 'true' and
@@ -164,13 +164,27 @@ const getPushSubscriptions = (customers) => {
       (res) =>
         res?.recordset
           ?.filter((row) => row?.subscription)
-          .map((row) => JSON.parse(row.subscription)) || []
+          .map((row) => ({
+            session: row.session,
+            subscription: JSON.parse(row.subscription),
+          })) || []
     )
     .catch((err) => {
       console.log(err)
       return []
     })
 }
+
+const clearBadSubscriptions = (sessions) =>
+  new sql.Request()
+    .query(
+      `
+    UPDATE Sessions
+    SET subscription = null
+    WHERE session in (${"'" + sessions.join("', '") + "'"})
+  `
+    )
+    .catch((err) => console.log(err))
 
 module.exports = {
   createUser,
@@ -183,4 +197,5 @@ module.exports = {
   upsertMqttDevice,
   getMqttDevices,
   getPushSubscriptions,
+  clearBadSubscriptions,
 }

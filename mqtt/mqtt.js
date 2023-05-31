@@ -1,15 +1,20 @@
 const mqtt = require('mqtt')
 const moment = require('moment-timezone')
 const webpush = require('web-push')
+const schedule = require('node-schedule')
 
-const { upsertMqttDevice, getPushSubscriptions } = require('../auth/db_user')
+const {
+  upsertMqttDevice,
+  getPushSubscriptions,
+  clearBadSubscriptions,
+} = require('../auth/db_user')
 const {
   WEBPUSH_MAIL,
   WEBPUSH_PUBLIC_KEY,
   WEBPUSH_PRIVATE_KEY,
 } = require('../tokens.json')
 
-const adminUsers = ['ishay2', 'lior', 'amit']
+const adminUsers = ['ishay2', 'lior', 'amit', 'izak']
 
 const mqttServers = [
   'mqtts://broker.hivemq.com:8883',
@@ -111,6 +116,8 @@ const pushConfUpdate = async (conf, user) => {
 }
 
 const setupMqtt = (store) => {
+  listenToAlerts(store)
+
   mqttServers.forEach((url) => {
     const client = mqtt.connect(url, { rejectUnauthorized: false })
     client.on('connect', () => {
@@ -248,48 +255,52 @@ const calcExpectedTime = (device) => {
   }
 }
 
-const listenToAlerts = () => {
+const listenToAlerts = (store) => {
   webpush.setVapidDetails(WEBPUSH_MAIL, WEBPUSH_PUBLIC_KEY, WEBPUSH_PRIVATE_KEY)
 
-  let lastPolled = '',
-    devices = {}
+  store.onUpdate((device) => {
+    const id = `${device.id}|${device.server}`
 
-  const pollDB = async () => {
-    const newDevices = await getMqttDevices(lastPolled)
-
-    newDevices.forEach((device) => {
-      const id = `${device.deviceID}|${device.server}`
-      const minutes = moment(device.expectedUpdateAt).diff(moment(), 'minutes')
-      if (minutes > 0)
-        device.notify = setTimeout(() => {
-          sendPushNotification(devices[id])
-        }, (minutes + 10) * 60 * 1000)
-      devices[id] = device
-    })
-
-    lastPolled = new Date().toISOString()
-  }
-
-  setInterval(async () => {
-    await pollDB()
-  }, 10 * 60 * 1000)
+    const buffer = 10
+    if (moment().subtract(buffer, 'minutes').isBefore(device.afterNextUpdate)) {
+      const sendAt = moment
+        .max(moment(device.afterNextUpdate), moment())
+        .add(buffer, 'minutes')
+      schedule.cancelJob(id)
+      schedule.scheduleJob(id, sendAt.toDate(), () =>
+        sendPushNotification(device)
+      )
+    }
+  })
 }
 
 const sendPushNotification = async (device) => {
-  const subs = await getPushSubscriptions([...adminUsers, device.customer])
-  console.log(subs)
-  subs.forEach((sub) => {
-    webpush.sendNotification(
-      sub,
-      JSON.stringify({
-        title: 'RedMite - Device Error Alert',
-        description: `Device ${device.deviceID} was expected
-        to update at ${moment(device.expectedUpdateAt).toISOString()}.
-        Current status is ${device.mode} since
-        ${moment(device.timestamp).toISOString()}`,
-      })
+  const sessions = await getPushSubscriptions([...adminUsers, device.customer])
+
+  const badSessions = await Promise.all(
+    sessions.map(({ subscription, session }) =>
+      webpush
+        .sendNotification(
+          subscription,
+          JSON.stringify({
+            deviceID: device.id,
+            lastUpdated: device.lastUpdated,
+            expectedUpdateAt: device.nextUpdate,
+            mode: device.status.mode,
+            server: device.server,
+          })
+        )
+        .then(() => null)
+        .catch((err) => {
+          console.log(err)
+          return session
+        })
     )
-  })
+  )
+    .then((res) => res.filter((item) => item))
+    .catch(() => [])
+
+  if (badSessions.length) await clearBadSubscriptions(badSessions)
 }
 
 module.exports = {
