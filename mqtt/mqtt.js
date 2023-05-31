@@ -115,6 +115,35 @@ const pushConfUpdate = async (conf, user) => {
   })
 }
 
+const pushOtaUpdate = async (id, version, user, store) => {
+  if (
+    adminUsers.includes(user.username) ||
+    store.get(id)?.customer === user.customer
+  )
+    return new Promise((resolve, reject) => {
+      const url = user.settings?.mqtt || 'mqtts://broker.hivemq.com:8883'
+
+      const client = mqtt.connect(url, { rejectUnauthorized: false })
+
+      client.on('connect', () => {
+        client.publish(
+          `YIELDX/OTA/RM/${id}`,
+          `http://3.127.195.30/RedMite/OTA/${version}.bin`,
+          { retain: true },
+          (error) => {
+            client.end()
+            if (error) reject('MQTT error')
+            else resolve()
+          }
+        )
+      })
+      client.on('error', (error) => {
+        console.log(error)
+        reject('MQTT error')
+      })
+    })
+}
+
 const setupMqtt = (store) => {
   listenToAlerts(store)
 
@@ -306,6 +335,7 @@ const sendPushNotification = async (device) => {
 module.exports = {
   adminUsers,
   pushConfUpdate,
+  pushOtaUpdate,
   setupMqtt,
   calcExpectedTime,
   mqttServers,

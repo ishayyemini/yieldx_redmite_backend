@@ -21,6 +21,7 @@ const {
   mqttServers,
   pushConfUpdate,
   setupMqtt,
+  pushOtaUpdate,
 } = require('./mqtt/mqtt')
 
 const app = express()
@@ -179,6 +180,16 @@ app.post('/update-device-conf', withAuth, async (req, res) => {
   const user = await findUserByID(res.locals.session)
   await pushConfUpdate(req.body, user)
   res.sendStatus(200)
+})
+
+app.post('/update-device-ota', withAuth, async (req, res) => {
+  const { id, version } = req.body
+  if (!id || !version) res.status(400).send('Missing required parameters')
+  else {
+    const user = await findUserByID(res.locals.session)
+    await pushOtaUpdate(id, version, user, store)
+    res.sendStatus(200)
+  }
 })
 
 app.post('/auth/signup', async (req, res) => {
