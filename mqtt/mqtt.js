@@ -39,6 +39,7 @@ const parseMessage = (topic, payload) => {
             battery: parsed.BSTAT === 'Low' ? 'Low' : 'Ok',
             mode: parsed.MODE || '',
           },
+          hidden: parsed.HIDDEN || false,
           lastUpdated: parsed.TS * 1000 || 0,
         }
       if (topic.startsWith('YIELDX/CONF/RM/CURRENT/'))
@@ -116,6 +117,54 @@ const pushConfUpdate = async (conf, user) => {
       reject('MQTT error')
     })
   })
+}
+
+const pushHiddenDevice = async ({ id, hidden }, user, store) => {
+  if (
+    adminUsers.includes(user.username) ||
+    store.get(id)?.customer === user.customer
+  )
+    return new Promise((resolve, reject) => {
+      const url = user.settings?.mqtt || 'mqtts://broker.hivemq.com:8883'
+      const client = mqtt.connect(url, { rejectUnauthorized: false })
+
+      const timeout = setTimeout(() => {
+        client.end()
+        reject('MQTT timeout')
+      }, 5000)
+
+      client.on('connect', () => {
+        client.subscribe(`YIELDX/STAT/RM/${id}`)
+        let published = false
+        client.on('message', (_, payload) => {
+          if (!published)
+            try {
+              const data = {
+                ...JSON.parse(payload.toString()),
+                HIDDEN: hidden || false,
+              }
+              client.publish(
+                `YIELDX/STAT/RM/${id}`,
+                JSON.stringify(data),
+                { retain: true },
+                (error) => {
+                  clearTimeout(timeout)
+                  client.end()
+                  if (error) reject('MQTT error')
+                  else resolve()
+                }
+              )
+            } catch {
+              reject('MQTT error')
+            }
+        })
+      })
+      client.on('error', (error) => {
+        console.log(error)
+        reject('MQTT error')
+      })
+    })
+  else throw new Error('Unauthorized')
 }
 
 const pushOtaUpdate = async (id, version, user, store) => {
@@ -346,4 +395,5 @@ module.exports = {
   setupMqtt,
   calcExpectedTime,
   mqttServers,
+  pushHiddenDevice,
 }

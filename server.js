@@ -22,6 +22,7 @@ const {
   pushConfUpdate,
   setupMqtt,
   pushOtaUpdate,
+  pushHiddenDevice,
 } = require('./mqtt/mqtt')
 
 const app = express()
@@ -180,6 +181,15 @@ app.post('/update-device-conf', withAuth, async (req, res) => {
   const user = await findUserByID(res.locals.session)
   await pushConfUpdate(req.body, user)
   res.sendStatus(200)
+})
+
+app.post('/hide-device', withAuth, async (req, res) => {
+  if (!req.body.id) res.status(400).send('Missing required parameters')
+  else {
+    const user = await findUserByID(res.locals.session)
+    await pushHiddenDevice(req.body, user, store)
+    res.sendStatus(200)
+  }
 })
 
 app.post('/update-device-ota', withAuth, async (req, res) => {
