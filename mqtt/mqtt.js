@@ -23,52 +23,55 @@ const mqttServers = [
 
 const parseMessage = (topic, payload) => {
   let data = {}
-  try {
-    const parsed = JSON.parse(payload.toString())
-    if (topic.startsWith('YIELDX/STAT/RM/'))
-      data = {
-        id: topic.split('/')[3],
-        status: {
-          start: parsed.STRT * 1000 || 0,
-          end: parsed.END * 1000 || 0,
-          detection: parsed.DETCT * 1000 || 0,
-          trained: parsed.TRND * 1000 || 0,
-          battery: parsed.BSTAT === 'Low' ? 'Low' : 'Ok',
-          mode: parsed.MODE || '',
-        },
-        lastUpdated: parsed.TS * 1000 || 0,
-      }
-    if (topic.startsWith('YIELDX/CONF/RM/CURRENT/'))
-      data = {
-        id: topic.split('/')[4],
-        location: parsed.Location ?? '',
-        house: parsed.House ?? '',
-        inHouseLoc: parsed.InHouseLoc ?? '',
-        customer: parsed.Customer ?? '',
-        contact: parsed.Contact ?? '',
-        timezone: isNaN(parsed.TZ) ? 0 : Number(parsed.TZ),
-        conf: {
-          training: {
-            preOpen: parsed.PreOpen ?? 0,
-            ventDur: parsed.ventDur ?? 1,
-            on1: parsed.On_1 ?? 0,
-            sleep1: parsed.Sleep_1 ?? 0,
-            train: parsed.Train ?? 0,
+  if (topic.startsWith('YIELDX/OTA/RM/'))
+    data = { id: topic.split('/')[3], version: payload.toString() }
+  else
+    try {
+      const parsed = JSON.parse(payload.toString())
+      if (topic.startsWith('YIELDX/STAT/RM/'))
+        data = {
+          id: topic.split('/')[3],
+          status: {
+            start: parsed.STRT * 1000 || 0,
+            end: parsed.END * 1000 || 0,
+            detection: parsed.DETCT * 1000 || 0,
+            trained: parsed.TRND * 1000 || 0,
+            battery: parsed.BSTAT === 'Low' ? 'Low' : 'Ok',
+            mode: parsed.MODE || '',
           },
-          detection: {
-            open1: parsed.Open_1?.padStart(5, '0') ?? '09:46',
-            close1: parsed.Close_1?.padStart(5, '0') ?? '09:48',
-            startDet: parsed.StartDet?.padStart(5, '0') ?? '09:50',
-            vent2: parsed.vent2 ?? 0,
-            on2: parsed.On_2 ?? 1,
-            sleep2: parsed.Sleep_2 ?? 1,
-            detect: parsed.Detect ?? 1,
+          lastUpdated: parsed.TS * 1000 || 0,
+        }
+      if (topic.startsWith('YIELDX/CONF/RM/CURRENT/'))
+        data = {
+          id: topic.split('/')[4],
+          location: parsed.Location ?? '',
+          house: parsed.House ?? '',
+          inHouseLoc: parsed.InHouseLoc ?? '',
+          customer: parsed.Customer ?? '',
+          contact: parsed.Contact ?? '',
+          timezone: isNaN(parsed.TZ) ? 0 : Number(parsed.TZ),
+          conf: {
+            training: {
+              preOpen: parsed.PreOpen ?? 0,
+              ventDur: parsed.ventDur ?? 1,
+              on1: parsed.On_1 ?? 0,
+              sleep1: parsed.Sleep_1 ?? 0,
+              train: parsed.Train ?? 0,
+            },
+            detection: {
+              open1: parsed.Open_1?.padStart(5, '0') ?? '09:46',
+              close1: parsed.Close_1?.padStart(5, '0') ?? '09:48',
+              startDet: parsed.StartDet?.padStart(5, '0') ?? '09:50',
+              vent2: parsed.vent2 ?? 0,
+              on2: parsed.On_2 ?? 1,
+              sleep2: parsed.Sleep_2 ?? 1,
+              detect: parsed.Detect ?? 1,
+            },
           },
-        },
-      }
-  } catch {
-    console.error('Cannot parse mqtt message')
-  }
+        }
+    } catch {
+      console.error('Cannot parse mqtt message')
+    }
   return data
 }
 
@@ -150,7 +153,11 @@ const setupMqtt = (store) => {
   mqttServers.forEach((url) => {
     const client = mqtt.connect(url, { rejectUnauthorized: false })
     client.on('connect', () => {
-      client.subscribe(['YIELDX/STAT/RM/#', 'YIELDX/CONF/RM/#'])
+      client.subscribe([
+        'YIELDX/STAT/RM/#',
+        'YIELDX/CONF/RM/#',
+        'YIELDX/OTA/RM/#',
+      ])
       client.on('message', (topic, payload) => {
         const data = parseMessage(topic, payload)
         const device = { ...(store.get(`${data.id}|${url}`) ?? {}), ...data }
