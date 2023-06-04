@@ -50,6 +50,7 @@ const parseMessage = (topic, payload) => {
           inHouseLoc: parsed.InHouseLoc ?? '',
           customer: parsed.Customer ?? '',
           contact: parsed.Contact ?? '',
+          comment: parsed.Comment ?? '',
           timezone: isNaN(parsed.TZ) ? 0 : Number(parsed.TZ),
           conf: {
             training: {
@@ -85,6 +86,7 @@ const pushConfUpdate = async (conf, user) => {
       InHouseLoc: conf.inHouseLoc,
       Customer: conf.customer,
       Contact: conf.contact,
+      Comment: conf.comment,
       PreOpen: conf.preOpen,
       ventDur: conf.ventDur,
       On_1: conf.on1,
