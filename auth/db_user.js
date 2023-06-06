@@ -139,12 +139,12 @@ const getDeviceHistory = ({ id, server, status }) => {
   return new sql.Request()
     .query(
       `
-SELECT *, startTime, endTime FROM MqttHistory
+SELECT * FROM MqttHistory
 WHERE deviceID = '${id}' and server = '${server}' and
       endTime >= '${moment(status.start || moment()).toISOString()}'
 ORDER BY timestamp
 
-SELECT *, startTime, endTime FROM MqttStatus
+SELECT * FROM MqttStatus
 WHERE deviceID = '${id}' and server = '${server}'
     `
     )
