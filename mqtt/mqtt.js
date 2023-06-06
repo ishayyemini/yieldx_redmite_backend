@@ -325,8 +325,12 @@ const calcExpectedTime = (device) => {
         parseHour(device.conf.detection.startDet, true),
         'minutes'
       )
-      currentCycle = Math.floor(minutesSinceOpen / detectCycleLength) + 1
+      currentCycle =
+        device.status.mode === 'Report Inspection'
+          ? Math.floor(minutesSinceOpen / detectCycleLength) + 1
+          : Math.round(minutesSinceOpen / detectCycleLength)
       totalCycles = Math.ceil(device.conf.detection.detect / detectCycleLength)
+      currentCycle = Math.min(currentCycle, totalCycles)
 
       nextUpdate.add(detectCycleLength, 'minutes')
       if (currentCycle < totalCycles)
