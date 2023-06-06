@@ -560,14 +560,27 @@ const getOperations = async ({ id, server }, user, store) => {
   return operations
     .map((item) => ({
       ...item,
-      cycles: item.cycles.map((cycle) =>
-        cycle
-          ? {
-              start: cycle.start ? cycle.start.unix() * 1000 : undefined,
-              end: cycle.end ? cycle.end.unix() * 1000 : undefined,
-            }
-          : null
-      ),
+      cycles: item.cycles
+        // Don't allow cycles to overlap
+        .map((cycle, index, arr) =>
+          cycle?.end
+            ? {
+                start: cycle.start,
+                end: arr[index + 1]?.start
+                  ? moment.min(arr[index + 1]?.start, cycle.end)
+                  : cycle.end,
+              }
+            : cycle
+        )
+        // Map Moments into unix
+        .map((cycle) =>
+          cycle
+            ? {
+                start: cycle.start ? cycle.start.unix() * 1000 : undefined,
+                end: cycle.end ? cycle.end.unix() * 1000 : undefined,
+              }
+            : null
+        ),
     }))
     .reverse()
 }
