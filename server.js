@@ -240,6 +240,7 @@ app.get('/list-ota', withAuth, async (req, res) => {
 })
 
 app.use((err, req, res, next) => {
+  console.error(err)
   if (res?.headersSent) return next(err)
   if (res?.status) {
     if (err?.message) res.status(500).send(err.message)
