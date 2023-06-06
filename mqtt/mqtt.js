@@ -326,9 +326,9 @@ const calcExpectedTime = (device) => {
         'minutes'
       )
       currentCycle =
-        device.status.mode === 'Report Inspection'
-          ? Math.floor(minutesSinceOpen / detectCycleLength) + 1
-          : Math.round(minutesSinceOpen / detectCycleLength)
+        (device.status.mode === 'Report Inspection'
+          ? Math.floor(minutesSinceOpen / detectCycleLength)
+          : Math.round(minutesSinceOpen / detectCycleLength)) + 1
       totalCycles = Math.ceil(device.conf.detection.detect / detectCycleLength)
       currentCycle = Math.min(currentCycle, totalCycles)
 
