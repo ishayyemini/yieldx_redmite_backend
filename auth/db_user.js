@@ -1,6 +1,7 @@
 const crypto = require('crypto')
 const sql = require('mssql')
 const { v4: uuid } = require('uuid')
+const moment = require('moment')
 
 const createUser = async ({ username, password }) => {
   const salt = crypto.randomBytes(16)
@@ -134,15 +135,23 @@ const upsertMqttDevice = (device) => {
   )
 }
 
-const getMqttDevices = (from) => {
+const getDeviceHistory = ({ id, server, status, lastUpdated }) => {
   return new sql.Request()
     .query(
       `
-    SELECT * FROM MqttStatus
-    WHERE timestamp >= '${from}'
-  `
+SELECT * FROM MqttHistory
+WHERE deviceID = '${id}' and server = '${server}' and
+      endTime >= '${moment(status.start || moment()).toISOString()}'
+ORDER BY timestamp
+
+SELECT * FROM MqttStatus
+WHERE deviceID = '${id}' and server = '${server}'
+    `
     )
-    .then((res) => res?.recordset || [])
+    .then((res) => [
+      ...(res?.recordsets?.[0] || []),
+      ...(res?.recordsets?.[1] || []),
+    ])
     .catch((err) => {
       console.log(err)
       return []
@@ -195,7 +204,7 @@ module.exports = {
   deleteSessions,
   updateSettings,
   upsertMqttDevice,
-  getMqttDevices,
+  getDeviceHistory,
   getPushSubscriptions,
   clearBadSubscriptions,
 }

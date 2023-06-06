@@ -7,6 +7,7 @@ const {
   upsertMqttDevice,
   getPushSubscriptions,
   clearBadSubscriptions,
+  getDeviceHistory,
 } = require('../auth/db_user')
 const {
   WEBPUSH_MAIL,
@@ -390,6 +391,187 @@ const sendPushNotification = async (device) => {
   if (badSessions.length) await clearBadSubscriptions(badSessions)
 }
 
+const getOperations = async ({ id, server }, user, store) => {
+  const device = store.get(`${id}|${server}`)
+  if (
+    !adminUsers.includes(user.username) &&
+    !device?.customer === user.customer
+  )
+    throw new Error('Unauthorized')
+
+  const deviceHistory = await getDeviceHistory(device)
+  const operations = [
+    {
+      category: 'Training',
+      totalCycles: 0,
+      cycles: [],
+    },
+  ]
+
+  const preOpenEvent = deviceHistory.find((item) => item.mode === 'PreOpen Lid')
+  const trainingEvents = deviceHistory.filter(
+    (item) => item.mode.startsWith('Training') && item.mode.split('|')[2]
+  )
+  if (trainingEvents.length)
+    operations[0].totalCycles = Number(trainingEvents[0].mode.split('|')[2])
+  else
+    operations[0].totalCycles = Math.ceil(
+      device.conf.training.train /
+        (device.conf.training.on1 + device.conf.training.sleep1)
+    )
+  operations[0].cycles = Array.from({
+    length: operations[0].totalCycles + 1,
+  }).map(() => null)
+
+  if (preOpenEvent)
+    operations[0].cycles[0] = {
+      start: moment(preOpenEvent.timestamp),
+      end: moment(preOpenEvent.expectedUpdateAt),
+    }
+
+  trainingEvents.forEach((item) => {
+    const index = Number(item.mode.split('|')[1])
+    const oldItem = operations[0].cycles[index]
+    if (oldItem)
+      operations[0].cycles[index] = {
+        start: moment.min(oldItem.start, moment(item.timestamp)),
+        end: moment.max(
+          oldItem.start,
+          moment.min(moment(item.endTime), moment(item.expectedUpdateAt))
+        ),
+      }
+    else
+      operations[0].cycles[index] = {
+        start: moment(item.timestamp),
+        end: moment.min(moment(item.endTime), moment(item.expectedUpdateAt)),
+      }
+  })
+
+  const inspectionOrder = [
+    'Lid Opened Idling',
+    'Lid Closed Idling',
+    ['Inspecting', 'Report Inspection'],
+    'Lid Closed Daily-Cycle Done',
+  ]
+
+  const inspectionCycles = []
+  deviceHistory.forEach((item) => {
+    const currentStage = inspectionOrder.findIndex((prefix) =>
+      typeof prefix === 'string'
+        ? item.mode.startsWith(prefix)
+        : prefix.some((p) => item.mode.startsWith(p))
+    )
+    if (currentStage > -1) {
+      if (
+        inspectionCycles.slice(-1)[0] &&
+        currentStage >=
+          (inspectionCycles.slice(-1)[0]?.slice(-1)[0]?.stage || 0)
+      )
+        inspectionCycles.slice(-1)[0].push({ ...item, stage: currentStage })
+      else inspectionCycles.push([{ ...item, stage: currentStage }])
+    }
+  })
+
+  inspectionCycles.forEach((cycle, cycleIndex) => {
+    operations.push({ category: 'Daily Cycle', totalCycles: 0, cycles: [] })
+    const openEvents = cycle.filter((item) => item.mode === 'Lid Opened Idling')
+    const closeEvents = cycle.filter(
+      (item) => item.mode === 'Lid Closed Idling'
+    )
+    const inspectionEvents = cycle.filter(
+      (item) => item.mode.includes('Inspect') && item.mode.split('|')[2]
+    )
+
+    if (inspectionEvents.length)
+      operations[cycleIndex + 1].totalCycles = Number(
+        inspectionEvents[0].mode.split('|')[2]
+      )
+    else
+      operations[0].totalCycles = Math.ceil(
+        device.conf.detection.detect /
+          (device.conf.detection.on2 + device.conf.detection.sleep2)
+      )
+    operations[cycleIndex + 1].cycles = Array.from({
+      length: operations[cycleIndex + 1].totalCycles + 2,
+    }).map(() => null)
+
+    if (openEvents.length)
+      operations[cycleIndex + 1].cycles[0] = {
+        start: moment.min(openEvents.map((item) => moment(item.timestamp))),
+        end: moment.max(
+          openEvents.map((item) =>
+            moment.min(moment(item.endTime), moment(item.expectedUpdateAt))
+          )
+        ),
+      }
+    if (closeEvents.length)
+      operations[cycleIndex + 1].cycles[1] = {
+        start: moment.min(closeEvents.map((item) => moment(item.timestamp))),
+        end: moment.max(
+          closeEvents.map((item) =>
+            moment.min(moment(item.endTime), moment(item.expectedUpdateAt))
+          )
+        ),
+      }
+
+    inspectionEvents.forEach((item) => {
+      const index = Number(item.mode.split('|')[1]) + 1
+      const oldItem = operations[cycleIndex + 1].cycles[index]
+      if (oldItem)
+        operations[cycleIndex + 1].cycles[index] = {
+          start: moment.min(oldItem.start, moment(item.timestamp)),
+          end: moment.max(
+            oldItem.start,
+            moment.min(moment(item.endTime), moment(item.expectedUpdateAt))
+          ),
+        }
+      else
+        operations[cycleIndex + 1].cycles[index] = {
+          start: moment(item.timestamp),
+          end: moment.min(moment(item.endTime), moment(item.expectedUpdateAt)),
+        }
+    })
+  })
+
+  operations.slice(-1)[0].cycles.forEach((cycle, index) => {
+    if (
+      index + 1 < operations.slice(-1)[0].cycles.length &&
+      operations
+        .slice(-1)[0]
+        .cycles.slice(index + 1)
+        .every((cycle) => cycle === null)
+    ) {
+      if (cycle?.end?.clone().add(10, 'minutes').isAfter(moment()))
+        operations.slice(-1)[0].cycles[index + 1] = { start: cycle.end }
+      else if (cycle?.start && !cycle.end)
+        operations.slice(-1)[0].cycles[index + 1] = {
+          start: cycle.start
+            .clone()
+            .add(
+              operations.slice(-1)[0].category === 'Daily Cycle'
+                ? device.conf.detection.on2 + device.conf.detection.sleep2
+                : device.conf.training.on1 + device.conf.training.sleep1,
+              'minutes'
+            ),
+        }
+    }
+  })
+
+  return operations
+    .map((item) => ({
+      ...item,
+      cycles: item.cycles.map((cycle) =>
+        cycle
+          ? {
+              start: cycle.start ? cycle.start.unix() * 1000 : undefined,
+              end: cycle.end ? cycle.end.unix() * 1000 : undefined,
+            }
+          : null
+      ),
+    }))
+    .reverse()
+}
+
 module.exports = {
   adminUsers,
   pushConfUpdate,
@@ -398,4 +580,5 @@ module.exports = {
   calcExpectedTime,
   mqttServers,
   pushHiddenDevice,
+  getOperations,
 }

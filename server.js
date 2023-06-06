@@ -23,6 +23,7 @@ const {
   setupMqtt,
   pushOtaUpdate,
   pushHiddenDevice,
+  getOperations,
 } = require('./mqtt/mqtt')
 
 const app = express()
@@ -237,6 +238,22 @@ app.get('/list-ota', withAuth, async (req, res) => {
       return []
     })
   res.json({ otaList: versions })
+})
+
+app.get('/get-device-history', withAuth, async (req, res) => {
+  const { id, server } = req.query
+  if (!id || !server) res.status(400).send('Missing required parameters')
+  else {
+    const user = await findUserByID(res.locals.session)
+    await getOperations({ id, server }, user, store)
+      .then((operations) => res.json({ deviceHistory: operations }))
+      .catch((err) => {
+        if (err.message === 'Unauthorized') res.status(401).send(err.message)
+        else if (err.message === 'Device not found')
+          res.status(404).send(err.message)
+        else throw err
+      })
+  }
 })
 
 app.use((err, req, res, next) => {
