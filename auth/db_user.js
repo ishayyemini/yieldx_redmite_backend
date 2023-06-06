@@ -135,16 +135,16 @@ const upsertMqttDevice = (device) => {
   )
 }
 
-const getDeviceHistory = ({ id, server, status, lastUpdated }) => {
+const getDeviceHistory = ({ id, server, status }) => {
   return new sql.Request()
     .query(
       `
-SELECT * FROM MqttHistory
+SELECT *, startTime, endTime FROM MqttHistory
 WHERE deviceID = '${id}' and server = '${server}' and
       endTime >= '${moment(status.start || moment()).toISOString()}'
 ORDER BY timestamp
 
-SELECT * FROM MqttStatus
+SELECT *, startTime, endTime FROM MqttStatus
 WHERE deviceID = '${id}' and server = '${server}'
     `
     )
