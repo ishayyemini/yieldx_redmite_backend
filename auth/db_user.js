@@ -3,6 +3,8 @@ const sql = require('mssql')
 const { v4: uuid } = require('uuid')
 const moment = require('moment')
 
+const { getPool } = require('../sql_pools')
+
 const createUser = async ({ username, password }) => {
   const salt = crypto.randomBytes(16)
   const user = {
@@ -12,42 +14,52 @@ const createUser = async ({ username, password }) => {
     salt,
     createdAt: new Date(),
   }
-  await new sql.Request()
-    .input('hashedPassword', sql.TYPES.VarBinary(sql.MAX), user.hashedPassword)
-    .input('salt', sql.TYPES.VarBinary(sql.MAX), user.salt)
-    .query(
-      `
+  await getPool('a').then((request) =>
+    request
+      .input(
+        'hashedPassword',
+        sql.TYPES.VarBinary(sql.MAX),
+        user.hashedPassword
+      )
+      .input('salt', sql.TYPES.VarBinary(sql.MAX), user.salt)
+      .query(
+        `
           INSERT INTO RedMiteUsers (id, username, hashedPassword, salt,
                                     createdAt)
           VALUES ('${user.id}', '${user.username}',
                   ${'@hashedPassword' + ', ' + '@salt'},
                   '${user.createdAt.toISOString()}')
       `
-    )
+      )
+  )
 
   return user
 }
 
 const findUser = ({ username }) => {
-  return new sql.Request()
-    .query(`SELECT * FROM RedMiteUsers WHERE username = '${username}'`)
-    .then((res) => {
-      const row = res?.recordset?.[0]
-      if (!row) throw new Error('User not found')
-      row.settings = JSON.parse(row.settings || '{}')
-      return row
-    })
+  return getPool('a').then((request) =>
+    request
+      .query(`SELECT * FROM RedMiteUsers WHERE username = '${username}'`)
+      .then((res) => {
+        const row = res?.recordset?.[0]
+        if (!row) throw new Error('User not found')
+        row.settings = JSON.parse(row.settings || '{}')
+        return row
+      })
+  )
 }
 
 const findUserByID = async ({ userID }) => {
-  return await new sql.Request()
-    .query(`SELECT * FROM RedMiteUsers WHERE id = '${userID}'`)
-    .then((res) => {
-      const row = res?.recordset?.[0]
-      if (!row) throw new Error('User not found')
-      row.settings = JSON.parse(row.settings || '{}')
-      return row
-    })
+  return await getPool('a').then((request) =>
+    request
+      .query(`SELECT * FROM RedMiteUsers WHERE id = '${userID}'`)
+      .then((res) => {
+        const row = res?.recordset?.[0]
+        if (!row) throw new Error('User not found')
+        row.settings = JSON.parse(row.settings || '{}')
+        return row
+      })
+  )
 }
 
 const updateSettings = async ({ userID }, settings) => {
@@ -58,16 +70,18 @@ const updateSettings = async ({ userID }, settings) => {
     ([key, value]) =>
       (newSettings = `JSON_MODIFY(${newSettings}, '$.${key}', '${value}')`)
   )
-  return new sql.Request()
-    .query(
-      `
+  return getPool('a').then((request) =>
+    request
+      .query(
+        `
   UPDATE RedMiteUsers
   SET settings = ${newSettings}
   OUTPUT INSERTED.settings
   WHERE id = '${userID}'  
 `
-    )
-    .then((res) => JSON.parse(res?.recordset?.[0]?.settings || '{}'))
+      )
+      .then((res) => JSON.parse(res?.recordset?.[0]?.settings || '{}'))
+  )
 }
 
 const createSession = async ({
@@ -78,8 +92,9 @@ const createSession = async ({
   maxAge,
   subscription,
 }) => {
-  await new sql.Request().query(
-    `
+  await getPool('a').then((request) =>
+    request.query(
+      `
           INSERT INTO Sessions (session, token, userID, createdAt, validUntil, 
                                 subscription)
           VALUES ('${session}', '${token}', '${userID}', 
@@ -87,17 +102,21 @@ const createSession = async ({
                   '${new Date(createdAt + 1000 * maxAge).toISOString()}', 
                   ${subscription ? `'${subscription}'` : 'null'})
       `
+    )
   )
 }
 
 const deleteSessions = (session) => {
-  return new sql.Request().query(`DELETE Sessions WHERE session = '${session}'`)
+  return getPool('a').then((request) =>
+    request.query(`DELETE Sessions WHERE session = '${session}'`)
+  )
 }
 
 const findAndInvalidateSession = ({ session, token }) => {
-  return new sql.Request()
-    .query(
-      `
+  return getPool('a').then((request) =>
+    request
+      .query(
+        `
   SELECT * 
   FROM Sessions 
   WHERE COALESCE(invalid, 'false') != 'true' and session = '${session}' and
@@ -108,15 +127,17 @@ const findAndInvalidateSession = ({ session, token }) => {
   WHERE COALESCE(invalid, 'false') != 'true' and session = '${session}' and
         token = '${token}'
     `
-    )
-    .then((res) => res?.recordset?.[0])
+      )
+      .then((res) => res?.recordset?.[0])
+  )
 }
 
 const upsertMqttDevice = (device) => {
   const { deviceID, server, timestamp, mode, customer, expectedUpdateAt } =
     device
-  return new sql.Request().query(
-    `
+  return getPool('a').then((request) =>
+    request.query(
+      `
   MERGE MqttStatus
   USING ( 
     VALUES ('${deviceID}', '${server}', '${timestamp}', '${mode}', 
@@ -132,13 +153,15 @@ const upsertMqttDevice = (device) => {
              foo.expectedUpdateAt)
   ;
 `
+    )
   )
 }
 
 const getDeviceHistory = ({ id, server, status }) => {
-  return new sql.Request()
-    .query(
-      `
+  return getPool('a').then((request) =>
+    request
+      .query(
+        `
 SELECT * FROM MqttHistory
 WHERE deviceID = '${id}' and server = '${server}' and
       endTime >= '${moment(status.start || moment()).toISOString()}'
@@ -147,53 +170,58 @@ ORDER BY timestamp
 SELECT * FROM MqttStatus
 WHERE deviceID = '${id}' and server = '${server}'
     `
-    )
-    .then((res) => [
-      ...(res?.recordsets?.[0] || []),
-      ...(res?.recordsets?.[1] || []),
-    ])
-    .catch((err) => {
-      console.log(err)
-      return []
-    })
+      )
+      .then((res) => [
+        ...(res?.recordsets?.[0] || []),
+        ...(res?.recordsets?.[1] || []),
+      ])
+      .catch((err) => {
+        console.log(err)
+        return []
+      })
+  )
 }
 
 const getPushSubscriptions = (customers) => {
-  return new sql.Request()
-    .query(
-      `
+  return getPool('a').then((request) =>
+    request
+      .query(
+        `
     SELECT session, subscription
     FROM Sessions
     JOIN RedMiteUsers RMU on Sessions.userID = RMU.id
     WHERE subscription is not null and COALESCE(invalid, 'false') != 'true' and
           customer in (${"'" + customers.join("', '") + "'"})
   `
-    )
-    .then(
-      (res) =>
-        res?.recordset
-          ?.filter((row) => row?.subscription)
-          .map((row) => ({
-            session: row.session,
-            subscription: JSON.parse(row.subscription),
-          })) || []
-    )
-    .catch((err) => {
-      console.log(err)
-      return []
-    })
+      )
+      .then(
+        (res) =>
+          res?.recordset
+            ?.filter((row) => row?.subscription)
+            .map((row) => ({
+              session: row.session,
+              subscription: JSON.parse(row.subscription),
+            })) || []
+      )
+      .catch((err) => {
+        console.log(err)
+        return []
+      })
+  )
 }
 
 const clearBadSubscriptions = (sessions) =>
-  new sql.Request()
-    .query(
-      `
+  getPool('a').then((request) =>
+    request
+      .query(
+        `
     UPDATE Sessions
     SET subscription = null
     WHERE session in (${"'" + sessions.join("', '") + "'"})
   `
-    )
-    .catch((err) => console.log(err))
+      )
+      .catch((err) => console.log(err))
+  )
 
 module.exports = {
   createUser,

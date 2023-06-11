@@ -1,5 +1,4 @@
 const express = require('express')
-const sql = require('mssql')
 const cors = require('cors')
 const passport = require('passport')
 const status = require('statuses')
@@ -25,6 +24,7 @@ const {
   pushHiddenDevice,
   getOperations,
 } = require('./mqtt/mqtt')
+const { setupSQL } = require('./sql_pools')
 
 const app = express()
 expressWs(app)
@@ -265,21 +265,10 @@ app.use((err, req, res, next) => {
   }
 })
 
-const config = {
-  user: 'sa',
-  password: 'Yieldxbiz2021',
-  server: process.env.NODE_ENV === 'dev' ? '3.127.195.30' : 'localhost',
-  database: process.env.NODE_ENV === 'dev' ? 'ishay' : 'yx_rm',
-  options: { encrypt: false },
-}
-sql.connect(config).then(async () => {
+setupSQL().then(async () => {
   await setupAuth()
   setupMqtt(store)
   app.listen(process.env.PORT || 4000, () => {
     console.log('Server Running on PORT', process.env.PORT || 4000)
   })
-})
-
-sql.on('error', (err) => {
-  console.log(err)
 })

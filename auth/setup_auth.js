@@ -1,7 +1,8 @@
-const sql = require('mssql')
+const { getPool } = require('../sql_pools')
 
 const setupAuth = async () => {
-  await new sql.Request().query(`
+  await getPool('a').then(async (request) => {
+    await request.query(`
 IF object_id('RedMiteUsers') is null
   CREATE TABLE RedMiteUsers ( 
     id UNIQUEIDENTIFIER PRIMARY KEY, 
@@ -39,11 +40,12 @@ IF object_id('Sessions') is null
     subscription NVARCHAR(MAX)
   )
 `)
-  await new sql.Request().query(`
+    await request.query(`
 CREATE OR ALTER TRIGGER Expire_Sessions_Trigger ON Sessions
 FOR INSERT, UPDATE, DELETE
 AS DELETE FROM Sessions WHERE validUntil < GETDATE()
 `)
+  })
 }
 
 module.exports = setupAuth
