@@ -403,7 +403,16 @@ const getOperations = async ({ id, server }, user, store) => {
   )
     throw new Error('Unauthorized')
 
-  const deviceHistory = await getDeviceHistory(device)
+  const deviceHistory = await getDeviceHistory(device).then((res) =>
+    // Don't let the end be after next timestamp
+    res.map((item, index, arr) => ({
+      ...item,
+      endTime: arr[index + 1]
+        ? moment.min(moment(item.endTime), moment(arr[index + 1].timestamp))
+        : item.endTime,
+    }))
+  )
+
   const operations = [
     {
       category: 'Training',
