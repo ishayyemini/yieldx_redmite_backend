@@ -539,29 +539,17 @@ const getOperations = async ({ id, server }, user, store) => {
     })
   })
 
-  operations.slice(-1)[0].cycles.forEach((cycle, index) => {
-    if (
-      index + 1 < operations.slice(-1)[0].cycles.length &&
-      operations
-        .slice(-1)[0]
-        .cycles.slice(index + 1)
-        .every((cycle) => cycle === null)
-    ) {
-      if (cycle?.end?.clone().add(10, 'minutes').isAfter(moment()))
-        operations.slice(-1)[0].cycles[index + 1] = { start: cycle.end }
-      else if (cycle?.start && !cycle.end)
-        operations.slice(-1)[0].cycles[index + 1] = {
-          start: cycle.start
-            .clone()
-            .add(
-              operations.slice(-1)[0].category === 'Daily Cycle'
-                ? device.conf.detection.on2 + device.conf.detection.sleep2
-                : device.conf.training.on1 + device.conf.training.sleep1,
-              'minutes'
-            ),
-        }
+  const firstNullCycle = operations
+    .slice(-1)[0]
+    .cycles.findIndex((item) => item === null)
+  if (firstNullCycle > -1) {
+    operations.slice(-1)[0].cycles[firstNullCycle] = {
+      start: operations.slice(-1)[0].cycles[firstNullCycle - 1].end,
     }
-  })
+    operations.slice(-1)[0].cycles = operations
+      .slice(-1)[0]
+      .cycles.slice(0, firstNullCycle + 1)
+  }
 
   return operations
     .map((item) => ({
