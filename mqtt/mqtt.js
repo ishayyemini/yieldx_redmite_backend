@@ -464,11 +464,15 @@ const getOperations = async ({ id, server }, user, store) => {
         ? item.mode.startsWith(prefix)
         : prefix.some((p) => item.mode.startsWith(p))
     )
+    const currentCycle = item.mode.split('|')[1] || 0
+
     if (currentStage > -1) {
       if (
         inspectionCycles.slice(-1)[0] &&
         currentStage >=
-          (inspectionCycles.slice(-1)[0]?.slice(-1)[0]?.stage || 0)
+          (inspectionCycles.slice(-1)[0]?.slice(-1)[0]?.stage || 0) &&
+        currentCycle >=
+          (inspectionCycles.slice(-1)[0]?.slice(-1)[0]?.mode.split('|')[1] || 0)
       )
         inspectionCycles.slice(-1)[0].push({ ...item, stage: currentStage })
       else inspectionCycles.push([{ ...item, stage: currentStage }])
