@@ -436,46 +436,34 @@ const getOperations = async ({ id, server }, user, store) => {
   trainingEvents.forEach((item) => {
     const index = Number(item.mode.split('|')[1])
     const oldItem = operations[0].cycles[index]
-    if (oldItem)
-      operations[0].cycles[index] = {
-        start: moment.min(oldItem.start, moment(item.timestamp)),
-        end: moment.max(
-          oldItem.end,
-          moment.min(moment(item.endTime), moment(item.expectedUpdateAt))
-        ),
-      }
-    else
-      operations[0].cycles[index] = {
-        start: moment(item.timestamp),
-        end: moment.min(moment(item.endTime), moment(item.expectedUpdateAt)),
-      }
+    operations[0].cycles[index] = {
+      start: oldItem?.start || moment(item.timestamp),
+      end: moment.min(moment(item.endTime), moment(item.expectedUpdateAt)),
+    }
   })
 
   const inspectionOrder = [
-    'Lid Opened Idling',
-    'Lid Closed Idling',
+    ['Lid Opened Idling'],
+    ['Lid Closed Idling'],
     ['Inspecting', 'Report Inspection'],
   ]
 
   const inspectionCycles = []
   deviceHistory.forEach((item) => {
     const currentStage = inspectionOrder.findIndex((prefix) =>
-      typeof prefix === 'string'
-        ? item.mode.startsWith(prefix)
-        : prefix.some((p) => item.mode.startsWith(p))
+      prefix.some((p) => item.mode.startsWith(p))
     )
     const currentCycle = item.mode.split('|')[1] || 0
+    const lastItem = inspectionCycles.slice(-1)[0]?.slice(-1)[0]
 
     if (currentStage > -1) {
       if (
         inspectionCycles.slice(-1)[0] &&
-        currentStage >=
-          (inspectionCycles.slice(-1)[0]?.slice(-1)[0]?.stage || 0) &&
-        currentCycle >=
-          (inspectionCycles.slice(-1)[0]?.slice(-1)[0]?.mode.split('|')[1] || 0)
+        currentStage >= (lastItem?.stage || 0) &&
+        currentCycle >= (lastItem?.mode.split('|')[1] || 0)
       )
-        inspectionCycles.slice(-1)[0].push({ ...item, stage: currentStage })
-      else inspectionCycles.push([{ ...item, stage: currentStage }])
+        inspectionCycles.slice(-1)[0].push(item)
+      else inspectionCycles.push([item])
     }
   })
 
@@ -494,7 +482,7 @@ const getOperations = async ({ id, server }, user, store) => {
         inspectionEvents[0].mode.split('|')[2]
       )
     else
-      operations[0].totalCycles = Math.ceil(
+      operations[cycleIndex + 1].totalCycles = Math.ceil(
         device.conf.detection.detect /
           (device.conf.detection.on2 + device.conf.detection.sleep2)
       )
@@ -524,6 +512,7 @@ const getOperations = async ({ id, server }, user, store) => {
     inspectionEvents.forEach((item) => {
       const index = Number(item.mode.split('|')[1]) + 1
       const oldItem = operations[cycleIndex + 1].cycles[index]
+
       operations[cycleIndex + 1].cycles[index] = {
         start: oldItem?.start || moment(item.timestamp),
         end: moment.min(
@@ -539,33 +528,22 @@ const getOperations = async ({ id, server }, user, store) => {
     })
   })
 
-  const firstNullCycle = operations
+  const lastCycle = operations
     .slice(-1)[0]
-    .cycles.findIndex((item) => item === null)
-  if (firstNullCycle > -1) {
-    operations.slice(-1)[0].cycles[firstNullCycle] = {
-      start: operations.slice(-1)[0].cycles[firstNullCycle - 1].end,
+    .cycles.findLastIndex((item) => item !== null)
+  if (operations.slice(-1)[0].cycles.length > lastCycle + 1) {
+    operations.slice(-1)[0].cycles[lastCycle + 1] = {
+      start: operations.slice(-1)[0].cycles[lastCycle].end,
     }
     operations.slice(-1)[0].cycles = operations
       .slice(-1)[0]
-      .cycles.slice(0, firstNullCycle + 1)
+      .cycles.slice(0, lastCycle + 2)
   }
 
   return operations
     .map((item) => ({
       ...item,
       cycles: item.cycles
-        // Don't allow cycles to overlap
-        .map((cycle, index, arr) =>
-          cycle?.end
-            ? {
-                start: cycle.start,
-                end: arr[index + 1]?.start
-                  ? moment.min(arr[index + 1]?.start, cycle.end)
-                  : cycle.end,
-              }
-            : cycle
-        )
         // Map Moments into unix
         .map((cycle) =>
           cycle
