@@ -525,13 +525,15 @@ const getOperations = async ({ id, server }, user, store) => {
       const index = Number(item.mode.split('|')[1]) + 1
       const oldItem = operations[cycleIndex + 1].cycles[index]
       operations[cycleIndex + 1].cycles[index] = {
-        start: moment.min(oldItem?.start ?? moment(), moment(item.timestamp)),
-        end: moment(
-          inspectionEvents.find((item) =>
-            item.mode.startsWith(`Inspecting|${index - 1}|`)
-          )?.expectedUpdateAt ||
-            oldItem?.end ||
-            moment.min(moment(item.endTime), moment(item.expectedUpdateAt))
+        start: oldItem?.start || moment(item.timestamp),
+        end: moment.min(
+          moment(
+            inspectionEvents.find((item) =>
+              item.mode.startsWith(`Inspecting|${index - 1}|`)
+            )?.expectedUpdateAt ?? moment.now()
+          ),
+          moment(item.endTime),
+          moment(item.expectedUpdateAt)
         ),
       }
     })
