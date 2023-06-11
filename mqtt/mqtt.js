@@ -455,7 +455,6 @@ const getOperations = async ({ id, server }, user, store) => {
     'Lid Opened Idling',
     'Lid Closed Idling',
     ['Inspecting', 'Report Inspection'],
-    'Lid Closed Daily-Cycle Done',
   ]
 
   const inspectionCycles = []
