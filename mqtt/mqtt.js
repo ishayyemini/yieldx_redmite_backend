@@ -8,6 +8,7 @@ const {
   getPushSubscriptions,
   clearBadSubscriptions,
   getDeviceHistory,
+  getDetectionHistory,
 } = require('../auth/db_user')
 const {
   WEBPUSH_MAIL,
@@ -566,6 +567,18 @@ const getOperations = async ({ id, server }, user, store) => {
     .reverse()
 }
 
+const getDetections = async ({ id, server }, user, store) => {
+  if (server !== mqttServers[1]) return []
+  const device = store.get(`${id}|${server}`)
+  if (
+    !adminUsers.includes(user.username) &&
+    !device?.customer === user.customer
+  )
+    throw new Error('Unauthorized')
+
+  return await getDetectionHistory(id)
+}
+
 module.exports = {
   adminUsers,
   pushConfUpdate,
@@ -575,4 +588,5 @@ module.exports = {
   mqttServers,
   pushHiddenDevice,
   getOperations,
+  getDetections,
 }

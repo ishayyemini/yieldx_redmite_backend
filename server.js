@@ -23,6 +23,7 @@ const {
   pushOtaUpdate,
   pushHiddenDevice,
   getOperations,
+  getDetections,
 } = require('./mqtt/mqtt')
 const { setupSQL } = require('./sql_pools')
 
@@ -247,6 +248,22 @@ app.get('/get-device-history', withAuth, async (req, res) => {
     const user = await findUserByID(res.locals.session)
     await getOperations({ id, server }, user, store)
       .then((operations) => res.json({ deviceHistory: operations }))
+      .catch((err) => {
+        if (err.message === 'Unauthorized') res.status(401).send(err.message)
+        else if (err.message === 'Device not found')
+          res.status(404).send(err.message)
+        else throw err
+      })
+  }
+})
+
+app.get('/get-device-detections', withAuth, async (req, res) => {
+  const { id, server } = req.query
+  if (!id || !server) res.status(400).send('Missing required parameters')
+  else {
+    const user = await findUserByID(res.locals.session)
+    await getDetections({ id, server }, user, store)
+      .then((detections) => res.json({ detections }))
       .catch((err) => {
         if (err.message === 'Unauthorized') res.status(401).send(err.message)
         else if (err.message === 'Device not found')

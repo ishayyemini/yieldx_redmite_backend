@@ -223,6 +223,31 @@ const clearBadSubscriptions = (sessions) =>
       .catch((err) => console.log(err))
   )
 
+const getDetectionHistory = async (id) => {
+  return await getPool('b').then((request) =>
+    request
+      .query(
+        `
+SELECT TS, res 
+FROM DetectResults
+WHERE BoardID = '${id}'
+ORDER BY TS
+    `
+      )
+      .then(
+        (res) =>
+          res?.recordset?.map((item) => ({
+            value: Number(item.res),
+            timestamp: item.TS * 1000,
+          })) || []
+      )
+      .catch((err) => {
+        console.log(err)
+        return []
+      })
+  )
+}
+
 module.exports = {
   createUser,
   findUser,
@@ -235,4 +260,5 @@ module.exports = {
   getDeviceHistory,
   getPushSubscriptions,
   clearBadSubscriptions,
+  getDetectionHistory,
 }
