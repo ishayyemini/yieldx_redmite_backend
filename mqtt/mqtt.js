@@ -576,7 +576,19 @@ const getDetections = async ({ id, server }, user, store) => {
   )
     throw new Error('Unauthorized')
 
-  return await getDetectionHistory(id)
+  const det = await getDetectionHistory(id)
+  const lastSessionEnd =
+    det.findLastIndex((item) =>
+      moment(item.timestamp).isSameOrBefore(moment(device?.status.start))
+    ) + 1
+
+  return lastSessionEnd
+    ? [
+        ...det.slice(0, lastSessionEnd),
+        { timestamp: device.status.start, value: 0, newSession: true },
+        ...det.slice(lastSessionEnd),
+      ]
+    : det
 }
 
 module.exports = {
