@@ -16,7 +16,7 @@ const {
   WEBPUSH_PRIVATE_KEY,
 } = require('../tokens.json')
 
-const adminUsers = ['ishay2', 'lior', 'amit', 'izak']
+const adminUsers = ['ishay2', 'lior', 'amit', 'izak', 'ophir']
 
 const mqttServers = [
   'mqtts://broker.hivemq.com:8883',
